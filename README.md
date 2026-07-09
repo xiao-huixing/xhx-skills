@@ -6,14 +6,14 @@ A collection of agent skills. Each skill lives in its own folder under `skills/`
 
 | Skill | What it does |
 | --- | --- |
-| [final-polish](skills/final-polish) | Appends a concise, human-style note to an agent's final answer — approach, what changed, and why. |
+| [final-response](skills/final-response) | Completion check before an agent sends its final answer — appends a short note on what changed, the path taken, and why. |
 
 ## Install
 
 Install one skill:
 
 ```bash
-npx skills add xiao-huixing/xhx-skills@final-polish
+npx skills add xiao-huixing/xhx-skills@final-response
 ```
 
 Install interactively (the CLI lists every skill in this repo):
