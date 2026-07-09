@@ -1,17 +1,19 @@
 ---
 name: final-response
-description: Use when an agent is about to send the final response after code edits,
-  config changes, refactors, bug fixes, verification, or non-trivial analysis with
-  decisions. Runs a completion check and attaches a short note on what changed and why.
+description: Use after code edits, config changes, refactors, bug fixes, test or
+  command runs, or non-trivial analysis with decisions. Apply on the same turn, right
+  before sending the final answer. Adds a short note on what changed and why. Skip
+  pure Q&A and one-line status replies.
 ---
 
 # Final Response
 
-Before sending your final answer, run a completion check, then attach a short note:
-what changed, the path taken, and why. This is a finishing step, not optional prose
-polish. It runs *after* implementation and verification — it does not replace them.
+If you opened this skill, apply it on this turn — do not read it and defer. Run a
+completion check, then attach a short note: what changed, the path taken, and why.
+This is a finishing step, not optional prose polish. It runs *after* implementation
+and verification — it does not replace them.
 
-## Mandatory Trigger
+## When To Apply
 
 Before sending a final response, check:
 
