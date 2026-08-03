@@ -1,0 +1,26 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "xhx-skills",
+  "description": "Reusable skills for software delivery and backend code-flow analysis.",
+  "owner": {
+    "name": "xiao-huixing"
+  },
+  "plugins": [
+    {
+      "name": "xhx-skills",
+      "source": "./",
+      "description": "Reusable skills for software delivery and backend code-flow analysis.",
+      "version": "0.1.0",
+      "author": {
+        "name": "xiao-huixing"
+      },
+      "license": "MIT",
+      "keywords": [
+        "agent-skills",
+        "backend",
+        "code-analysis"
+      ],
+      "category": "development"
+    }
+  ]
+}
