@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explain Backend Code Flow"
+  short_description: "读取后端代码并梳理完整业务流程、接口清单与执行过程"
+  default_prompt: "Use $explain-code-flow to inspect this backend module and explain the complete business flow, all interfaces, and each interface's execution process without detailed code."

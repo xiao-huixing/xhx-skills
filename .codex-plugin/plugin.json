@@ -1,0 +1,29 @@
+{
+  "name": "xhx-skills",
+  "version": "0.1.0",
+  "description": "Reusable skills for software delivery and backend code-flow analysis.",
+  "author": {
+    "name": "xiao-huixing"
+  },
+  "repository": "https://github.com/xiao-huixing/xhx-skills",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "agent-skills",
+    "backend",
+    "code-analysis"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "XHX Skills",
+    "shortDescription": "Reusable software delivery and backend analysis skills.",
+    "longDescription": "Adds completion checks and code-grounded backend business-flow analysis, including interface inventories and per-interface execution processes.",
+    "developerName": "xiao-huixing",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Code analysis",
+      "Workflow documentation"
+    ],
+    "defaultPrompt": "Use the appropriate XHX skill to analyze this backend flow or complete the current software-delivery task."
+  }
+}
