@@ -1,0 +1,18 @@
+id: REQ-YYYYMMDD-NNN-slug
+kind: requirement
+title: Replace this title
+phase: plan
+state: waiting_input
+delivery: not_started
+current_revision: R001
+base_commit: null
+capabilities: []
+modules: []
+parent: null
+supersedes: []
+gates:
+  plan_approved: false
+  review_approved: false
+  release_approved: false
+next_action: collect input
+updated_at: null

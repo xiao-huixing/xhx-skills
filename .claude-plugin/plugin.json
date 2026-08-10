@@ -1,12 +1,14 @@
 {
   "name": "xhx-skills",
-  "version": "0.1.0",
-  "description": "Reusable skills for software delivery and backend code-flow analysis.",
+  "version": "0.2.0",
+  "description": "Reusable skills for PRD-driven software delivery, evidence-driven bug fixing, and backend code-flow analysis.",
   "author": {
     "name": "xiao-huixing"
   },
   "skills": [
     "./skills/final-response",
-    "./skills/explain-code-flow"
+    "./skills/explain-code-flow",
+    "./skills/ai-workflow",
+    "./skills/bug-fix"
   ]
 }

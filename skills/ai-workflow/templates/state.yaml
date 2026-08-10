@@ -1,0 +1,10 @@
+phase: plan
+state: waiting_input
+active_task: null
+owner: null
+lease: null
+last_success:
+  event: null
+  git_head: null
+blocked_by: []
+next_action: collect input

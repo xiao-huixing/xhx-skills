@@ -8,6 +8,8 @@ A collection of agent skills. Each skill lives in its own folder under `skills/`
 | --- | --- |
 | [final-response](skills/final-response) | Completion check before an agent sends its final answer — appends a short note on what changed, the path taken, and why. |
 | [explain-code-flow](skills/explain-code-flow) | Reads backend code and explains end-to-end business flows, all interfaces, and each interface's execution process without detailed code. |
+| [ai-workflow](skills/ai-workflow) | Three-step, file-backed workflow for planning from a PRD, executing approved tasks, reviewing results, resuming work, and recording revisions. |
+| [bug-fix](skills/bug-fix) | Generic evidence-driven bug triage, root-cause repair, regression verification, and handoff workflow. |
 
 ## Install
 
@@ -18,6 +20,18 @@ npx skills add xiao-huixing/xhx-skills@final-response
 ```
 
 Replace `final-response` with `explain-code-flow` to install the backend flow analysis skill.
+
+For the development workflow:
+
+```bash
+npx skills add xiao-huixing/xhx-skills@ai-workflow
+npx skills add xiao-huixing/xhx-skills@bug-fix
+```
+
+The two skills share a `.ai-workflow/` directory in the target project. The
+first version uses Markdown/YAML/NDJSON files and includes a deterministic
+structure and event-log validator; it does not require a separate workflow
+service.
 
 Install interactively (the CLI lists every skill in this repo):
 

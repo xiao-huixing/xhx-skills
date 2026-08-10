@@ -1,7 +1,7 @@
 {
   "name": "xhx-skills",
-  "version": "0.1.0",
-  "description": "Reusable skills for software delivery and backend code-flow analysis.",
+  "version": "0.2.0",
+  "description": "Reusable skills for PRD-driven software delivery, evidence-driven bug fixing, and backend code-flow analysis.",
   "author": {
     "name": "xiao-huixing"
   },
@@ -16,14 +16,16 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "XHX Skills",
-    "shortDescription": "Reusable software delivery and backend analysis skills.",
-    "longDescription": "Adds completion checks and code-grounded backend business-flow analysis, including interface inventories and per-interface execution processes.",
+    "shortDescription": "PRD-driven software delivery, bug fixing, and backend analysis skills.",
+    "longDescription": "Adds a file-backed plan-execute-review workflow, evidence-driven bug fixing, completion checks, and code-grounded backend business-flow analysis.",
     "developerName": "xiao-huixing",
     "category": "Developer Tools",
     "capabilities": [
       "Code analysis",
-      "Workflow documentation"
+      "Workflow documentation",
+      "PRD-driven development",
+      "Evidence-driven bug fixing"
     ],
-    "defaultPrompt": "Use the appropriate XHX skill to analyze this backend flow or complete the current software-delivery task."
+    "defaultPrompt": "Use ai-workflow for plan, execute, review, resume, or revise; use bug-fix for evidence-driven defect work; use the other XHX skills when applicable."
   }
 }
