@@ -49,6 +49,56 @@
 |-------|------------|
 |       |            |
 
+## 2026-08-10 `ai-workflow` Audit
+
+### Local observations
+
+- Skill package totals 678 lines; `SKILL.md` is 120 lines, and references total 345 lines. Line count itself is moderate, but every mutating mode is forced to read the 125-line storage protocol before its mode reference.
+- Every mode runs the same broad startup scan: repository instructions, README, build/test/security rules, project overview, modules, capabilities, active index, target context, and structured state. This makes even `status`, targeted `execute`, and repeat-session actions pay discovery costs designed for first-time planning.
+- `execute` records state and appends an event both before and after every task, then regenerates derived views after meaningful changes. The protocol does not define batching, dirty-state thresholds, or a deterministic helper, so the agent is likely to perform many small read/write/validation cycles.
+- The contract mixes orchestration, persistence, requirement modeling, code execution, review, history retrieval, and release gating in one skill. This raises routing complexity and makes success dependent on the model consistently maintaining a large distributed protocol.
+- Existing eval assets need inspection before judging quality coverage; current symptoms suggest latency and outcome quality must be benchmarked separately.
+- The only bundled script validates file presence, work-item ID shape, JSON parsing, and required event keys. It does not validate YAML syntax or schema, legal state transitions, task dependencies, REQ/AC traceability, latest-event consistency, index freshness, or lease semantics; most fragile state work is still delegated to the model.
+- Existing evals contain four prompt-only cases with no fixture repository or input files, no saved run outputs/timing, no baseline, and no machine-verifiable grading. The `expectations` are broad behavioral statements, so the eval set cannot reveal whether an optimized version is faster or more correct.
+- `status` says it “should not call an LLM,” but it exists only as a mode inside an LLM-invoked Skill and has no status script. The stated performance contract is therefore not implementable by the current package.
+- The proposal already required light templates for low-risk changes, reuse of scan results/file hashes, and deterministic `init`, `status`, `index`, and validation scripts. The implementation contains only the shallow validator. The primary problem is therefore an MVP implementation gap, not simply excessive prose.
+- `.codex-plugin/plugin.json` injects a default prompt telling Codex to use `ai-workflow` for generic plan/execute/review requests, while the Skill description says “Use whenever” for broad development intents. This can over-trigger the heavy workflow and compete with ordinary implementation, verification, or code-review behavior.
+- The structured source of truth is duplicated: `manifest.yaml` and `execution/state.yaml` both store phase/state/next action, while `context.md`, `handoff.md`, active index, catalog, summary, and progress are derived. Without deterministic transactions, each duplicate creates extra writes and possible drift.
+- A mutating run loads about 1,500-1,700 words of Skill/router/storage/mode instructions before repository context. This is not catastrophic by itself; the larger latency multiplier is the number of required filesystem/tool round trips and repeated scans.
+
+### Primary-source findings
+
+- OpenAI Docs says a selected Skill loads its entire `SKILL.md`, while bundled references remain optional; descriptions should be concise, front-load use cases and boundaries, each Skill should focus on one job, and scripts are appropriate for deterministic behavior. This supports reducing the router body and moving state-machine work into executable helpers: https://learn.chatgpt.com/docs/build-skills
+- OpenAI's agent-evaluation guidance recommends inspecting end-to-end traces first, then using graders, datasets, and repeatable eval runs to compare routing or prompt changes. This confirms that the current final-output-only evals are insufficient for diagnosing latency and wasted tool calls: https://developers.openai.com/api/docs/guides/agent-evals
+- Anthropic's official authoring guidance says context is shared, only information the model does not already know should be included, and the degree of instruction freedom should match task fragility. Fragile state transitions should use low-freedom scripts; open-ended planning/review should keep higher freedom: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+- The same Anthropic guide recommends executing utility scripts instead of loading their source, creating verifiable intermediate outputs, and using a `plan → validate → execute → verify` loop for complex operations. This directly fits workflow initialization, state updates, event append, index rebuild, and gate validation.
+
+### Optimization direction
+
+- Keep one user-facing Skill, but make it a thin router. Splitting into three public Skills is not necessary initially and would increase user/trigger complexity; mode references plus a deterministic CLI preserve the three-step interface while restoring single responsibility at execution time.
+- Add `light`, `standard`, and `strict` tracks selected from explicit risk facts. Small low-risk changes should avoid revisions, decisions, handoff, release, and history machinery until needed; migrations, auth, production side effects, or long-lived work use the strict track.
+- Replace manual YAML/NDJSON editing with a single CLI surface: `init`, `resolve`, `status`, `task begin`, `task pass|fail|block`, `checkpoint`, `revise`, `index`, and `validate`. Each command should atomically update canonical facts, validate transitions, and regenerate only the views affected by that transition.
+- Make startup mode-specific. `status` runs the status command only; `execute` loads the selected task and its acceptance/plan slice; `review` loads the target revision, diff, and evidence; only first-time `plan` performs broad project discovery. Cache discovery by Git head and relevant file hashes.
+- Narrow implicit triggering and remove the plugin-level forcing prompt. For Codex, consider `agents/openai.yaml` with `policy.allow_implicit_invocation: false` if the intended usage is explicit `$ai-workflow`; otherwise constrain the description to lifecycle work with a PRD/REQ/durable-state need and state near-miss exclusions.
+
+### Proposed priority and acceptance metrics
+
+- P0 trigger: remove the forcing default prompt; add explicit near-miss boundaries. Measure trigger precision/recall over at least 20 realistic positive and adjacent negative prompts.
+- P0 state CLI: implement atomic canonical-state commands and legal-transition/traceability validation. Acceptance: corrupted YAML, illegal transitions, dependency violations, stale last-event pointers, and missing REQ/AC mappings all fail deterministically with actionable errors.
+- P0 fast path: implement `light` mode and mode-specific startup. Acceptance on a small low-risk change: no history/release/revision expansion, no full-project rescan after planning, and at least 40% fewer tool calls and 30% lower wall time than the current baseline without reducing task/test correctness.
+- P1 canonical model: remove duplicated persisted phase/state fields or make one file generated only; regenerate context/handoff/index only at pause, phase transition, or completion. Acceptance: a single command leaves manifest/tasks/events and all generated views consistent after injected interruption.
+- P1 evals: replace prompt-only evals with fixture repositories and assertions, snapshot the old Skill, run old/new on identical cases, capture duration/tokens/tool calls, grade behavior and filesystem state, and inspect traces for repeated reads/writes.
+- P2 refinement: add risk-lane applicability so review checks security, migration, performance, observability, and rollback only when evidence makes them relevant; this should improve finding precision and reduce generic checklist noise.
+
+## 2026-08-10 P0 Optimization Results
+
+- `SKILL.md` 由 120 行降至 86 行，`status` 不再读取 repository rules、README、references 或 workflow history；缺失存储时 CLI 直接返回 `not_initialized` 且不创建目录。
+- 新 CLI 成为结构化状态唯一 writer，覆盖 init、resolve、status、history、validate、plan-ready、approve-plan、task、review 和 refresh-index；状态写入带 lock、idempotency key、可恢复 transaction 和派生视图刷新。
+- Validator 从文件/事件键存在性提升为完整 manifest/task/state schema、枚举、gate、DAG、evidence、event identity、last_event/active_task 和 state drift 校验；事务恢复拒绝目录逃逸。
+- 旧模板被删除，避免模板、schema 与 CLI 三份定义继续漂移；JSON-compatible YAML 让 CLI 在没有 PyYAML 时仍能稳定写入。
+- 3 个真实 fixture 的独立评分结果：current 14/14，baseline 6/14；盲比较 current 3/3 胜出。最大质量提升来自真正的 status fast path、strict money 路由和 CLI provenance，不是增加更多 prose。
+- 单次 wall-time 不能支持“全面变快”的结论：status 快 61%，execute 快 14%，strict money plan 首轮慢 34%；第二轮减少重复读取/校验后比首轮快 12%，但仍比 baseline 慢 18%。后续 P1 应针对 planning discovery/cache 和可观测 tool-call telemetry，而不是弱化 strict 风险门禁。
+
 ## Resources
 
 - `docs/research/goal-workflow-analysis.md`

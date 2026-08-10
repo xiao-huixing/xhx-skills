@@ -26,6 +26,6 @@
       "PRD-driven development",
       "Evidence-driven bug fixing"
     ],
-    "defaultPrompt": "Use ai-workflow for plan, execute, review, resume, or revise; use bug-fix for evidence-driven defect work; use the other XHX skills when applicable."
+    "defaultPrompt": "Use installed XHX skills only when explicitly selected or when a skill's narrow description matches the task."
   }
 }

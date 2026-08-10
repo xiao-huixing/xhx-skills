@@ -85,3 +85,41 @@
   - `.codex-plugin/plugin.json`
   - `task_plan.md`
   - `progress.md`
+
+### Phase 11: `ai-workflow` 性能与效果审计
+
+- **Status:** complete
+- **Started:** 2026-08-10 19:16 CST
+- Actions taken:
+  - 按系统时间确认本轮资料时点。
+  - 读取 `skill-creator` 与 `planning-with-files` 工作规范。
+  - 确认本轮仅进行审计、资料核验和优化建议，不修改 `ai-workflow` 实现。
+  - 初步审阅入口与存储协议，发现共享启动扫描、逐任务双事件写入、派生视图维护和多职责耦合可能放大延迟与执行偏差。
+  - 审阅模式引用、schema、模板、脚本和 eval；确认确定性状态逻辑覆盖不足，现有 eval 无夹具、计时、基线或可复现评分。
+  - 查阅 OpenAI Docs 与 Anthropic 官方 Skill/agent eval 文档，提取单职责、渐进加载、确定性脚本和 trace-first 评测原则。
+  - 独立复核原方案与当前实现，确认轻量模板、扫描/hash 复用、`init/status/index` 脚本和严格状态机均未落地。
+  - 输出 `docs/research/ai-workflow-optimization-audit.md`，给出 P0/P1/P2 改造顺序与延迟、调用量、触发准确率和一致性验收指标。
+- Files created/modified:
+  - `docs/research/ai-workflow-optimization-audit.md`（创建）
+  - `task_plan.md`（更新）
+  - `findings.md`（更新）
+  - `progress.md`（更新）
+
+### Phase 12: `ai-workflow` P0 优化
+
+- **Status:** complete
+- **Started:** 2026-08-10 19:48 CST
+- Actions taken:
+  - 用户授权按审计结论优化，范围收敛为第一轮 P0。
+  - 读取 `skill-creator`、`implement`、`verification-loop` 和 `planning-with-files` 规范。
+  - 冻结 `ai-workflow-workspace/skill-snapshot` 作为旧版基线。
+  - 先新增 9 项 CLI/schema/状态迁移测试；基线结果为 1 通过、8 失败，失败集中在 CLI 缺失与 validator 过弱，符合预期。
+  - 实现 `workflow.py`、`workflow_store.py`、`workflow_validation.py`，覆盖只读查询、初始化、解析、索引、计划审批、任务迁移、审核结果、幂等事件、写者租约和可恢复原子文件提交。
+  - 将旧 `validate_workflow.py` 收敛为兼容入口；9 项测试全部通过。
+  - 将 `SKILL.md` 从 120 行收敛为薄路由器，移除全模式共享启动流程；`status/history` 改为不初始化、不扫描仓库的 CLI fast path。
+  - 缩窄 Skill description 和 Codex plugin 默认提示，增加 `light/standard/strict` 风险分级，统一审批状态为 `plan / waiting_input / approve_plan`。
+  - 删除不再使用且会与 CLI 漂移的手工模板；增加非拉丁标题显式 ASCII slug、事务恢复、路径逃逸防护、严格 schema/DAG/state/link 校验。
+  - 将测试扩展到 21 项，覆盖只读无副作用、完整 schema、非法迁移、依赖、幂等、审核完成、事务恢复与目录逃逸。
+  - 建立 3 个真实 fixture，完成旧版/current 对照执行、独立 grader、盲比较和 post-hoc 分析；current graded expectations 为 14/14，baseline 为 6/14，盲比较 3/3 由 current 胜出。
+  - 单次 timing 显示 status 108s→42s、execute 249s→213s；strict plan 首轮 365s→489s，去除占位文件回读、空 history 和冗余 validate 后第二轮降至 432s，仍是后续优化目标。
+  - 最终验证：21 项 unittest 全通过；Ruff、py_compile、Skill quick validation、fixture workflow validation、JSON 解析、secret pattern scan、行尾空白检查和 `git diff --check` 均通过。

@@ -1,125 +1,97 @@
 # Storage Protocol
 
-`.ai-workflow/` is the project-local, Git-versioned source for requirements,
-decisions, progress, verification, and release references. Do not put secrets,
-raw credentials, full production logs, or personal data in it.
+`.ai-workflow/` is project-local, Git-versioned workflow storage. Never write
+secrets, credentials, personal data, raw production logs, or full command output
+to it.
 
-## Directory
+## Ownership
+
+Use `scripts/workflow.py` for initialization and every state transition. The CLI
+serializes writers with `.writer.lock`, recovers staged `.transactions`, writes
+multi-file state through a recoverable transaction, appends idempotent events,
+and refreshes derived views.
+
+Canonical facts:
+
+- `work-items/<year>/<ID>/manifest.yaml`
+- `work-items/<year>/<ID>/tasks.yaml`
+- `work-items/<year>/<ID>/execution/events.ndjson`
+
+Derived views, safe to regenerate:
+
+- `execution/state.yaml`, `context.md`
+- `indexes/active.yaml`, `indexes/catalog.jsonl`
+
+Semantic documents such as revision input, plan, decisions, review, handoff,
+and evidence references remain agent-authored and do not need standalone
+validation. When manually changing task definitions or semantic manifest
+links, follow the mode's validation budget. Never hand-edit structured progress
+to force a transition.
+
+## Layout by track
+
+Every track creates the root indexes, project overview, canonical files, state,
+context, and current revision input. Add documents only when needed:
 
 ```text
 .ai-workflow/
-├── README.md
-├── project/
-│   ├── overview.md
-│   └── modules.yaml
-├── capabilities/
-│   └── index.yaml
-├── indexes/
-│   ├── active.yaml
-│   └── catalog.jsonl
-└── work-items/
-    └── YYYY/REQ-YYYYMMDD-NNN-slug/
-        ├── manifest.yaml
-        ├── context.md
-        ├── summary.md
-        ├── revisions/R001/
-        │   ├── input.md
-        │   ├── questions.md
-        │   ├── plan.md
-        │   └── delta.md
-        ├── tasks.yaml
-        ├── decisions.md
-        ├── execution/
-        │   ├── state.yaml
-        │   ├── events.ndjson
-        │   └── handoff.md
-        ├── review.md
-        ├── releases/
-        └── evidence/
+├── project/{overview.md,modules.yaml}
+├── capabilities/index.yaml
+├── indexes/{active.yaml,catalog.jsonl}
+└── work-items/YYYY/REQ-YYYYMMDD-NNN-slug/
+    ├── manifest.yaml
+    ├── tasks.yaml
+    ├── context.md
+    ├── revisions/R001/{input.md,plan.md}
+    ├── execution/{state.yaml,events.ndjson,handoff.md}
+    ├── decisions.md
+    ├── review.md
+    └── evidence/
 ```
 
-`BUG-YYYYMMDD-NNN-slug` uses the same layout. It is created by the separate
-`bug-fix` Skill and has bug-specific intake and baseline files when needed.
+`light` normally needs input, plan, tasks, context, and targeted evidence.
+`standard` adds decisions, handoff, integration evidence, and rollback detail.
+`strict` also records threat/risk analysis, migration/rollback proof, and
+release evidence. Do not create empty directories or boilerplate files.
+
+## Command contract
+
+From the Skill directory:
+
+```text
+python3 scripts/workflow.py init --root <repo>/.ai-workflow --title <title> --date YYYYMMDD --track light|standard|strict [--slug ascii-slug] [--base-commit SHA]
+python3 scripts/workflow.py resolve --root <repo>/.ai-workflow <ID|title|alias>
+python3 scripts/workflow.py validate --root <repo>/.ai-workflow [--work-item ID]
+python3 scripts/workflow.py plan-ready --root <repo>/.ai-workflow --work-item ID [--idempotency-key KEY]
+python3 scripts/workflow.py approve-plan --root <repo>/.ai-workflow --work-item ID [--idempotency-key KEY]
+python3 scripts/workflow.py task begin|pass|fail|block --root <repo>/.ai-workflow --work-item ID --task TASK-NNN [--evidence REF] [--error-class CLASS] [--idempotency-key KEY]
+python3 scripts/workflow.py review --root <repo>/.ai-workflow --work-item ID --result passed|passed_with_risks|needs_changes|blocked [--idempotency-key KEY]
+```
+
+Use a stable idempotency key for retried approval/task commands. Exit code `0`
+means success, `1` means invalid workflow/state, and `2` means invalid usage.
+
+## Lifecycle
+
+Valid phases are `plan`, `execute`, `review`, and `done`. Valid states are
+`active`, `waiting_input`, `blocked`, `paused`, `completed`, and `cancelled`.
+Planning ready for approval is represented as:
+
+```yaml
+phase: plan
+state: waiting_input
+next_action: approve_plan
+```
+
+Approval moves to execute; the final passed task moves to review; a passed
+review moves to done/completed. `needs_changes` requires a pending remediation
+task and returns to execute. Delivery state is independent of review and release
+authorization.
 
 ## Identity and revisions
 
-- `REQ-*` identifies a product requirement; `BUG-*` identifies a defect.
-- `R001`, `R002`, ... identify revisions within one work item.
-- The work-item directory never moves. `indexes/active.yaml` changes when an
-  item is completed, cancelled, or superseded.
-- Before plan approval, edits may remain in the current revision and Git records
-  the diff. After approval or implementation, a material change creates a new
-  revision with a `delta.md` and an impact analysis.
-- A new post-release product initiative creates a new REQ linked by `extends` or
-  `supersedes`; do not reopen the old item as if it were current behavior.
-
-## Manifest state
-
-Keep these fields separate:
-
-```yaml
-id: REQ-20260807-001-example
-kind: requirement
-title: Example requirement
-phase: plan                 # plan | execute | review | done
-state: waiting_plan_approval # active | waiting_input | blocked | paused | completed | cancelled
-delivery: not_started        # not_started | implemented | merged | deployed | verified
-current_revision: R001
-base_commit: <git-sha>
-parent: null
-supersedes: []
-next_action: TASK-001
-```
-
-`manifest.yaml` is machine state. It must not be inferred from a prose summary.
-Plan approval, review approval, release approval, and external side effects are
-separate gates.
-
-## Task and event facts
-
-`tasks.yaml` is the only task-progress source:
-
-```yaml
-- id: TASK-001
-  revision: R001
-  title: Implement the validation rule
-  status: pending       # pending | in_progress | passed | failed | blocked | skipped
-  depends_on: []
-  requirements: [REQ-EXAMPLE-001]
-  acceptance: [AC-001]
-  scope: [src/validation]
-  validation: ["npm test -- validation"]
-  evidence: []
-  last_event: null
-```
-
-`execution/events.ndjson` is append-only. Each event records one fact and keeps
-large output in an external evidence file:
-
-```json
-{"id":"EVT-001","at":"2026-08-07T12:00:00+08:00","actor":"codex","type":"task.started","task":"TASK-001","git":"abc123","refs":[]}
-```
-
-Use event types such as `question.answered`, `plan.approved`, `task.started`,
-`task.passed`, `task.failed`, `task.blocked`, `review.completed`, and
-`release.deployed`. Never record passwords, tokens, cookies, JWTs, or complete
-command output in an event.
-
-## Derived views and retrieval
-
-`context.md`, `summary.md`, `progress.md`, `indexes/active.yaml`, and
-`indexes/catalog.jsonl` are derived views. Regenerate them after meaningful
-state changes; if they conflict with manifest/tasks/events, the structured facts
-win.
-
-Default session loading is intentionally small: project overview, module index,
-active index, target manifest, context, tasks, state, and handoff. Query detailed
-decisions, old revisions, reviews, releases, and evidence only by requirement
-ID, capability, path, release, date, or keyword.
-
-## Initialization
-
-When `.ai-workflow/` is missing, create the minimal project files and one work
-item only when the user has supplied a requirement. Do not populate empty
-history directories or invent project facts. Mark unknown project facts as
-unknown and let `plan` collect them.
+`REQ-*` identifies requirements and `BUG-*` identifies defects. `R001`, `R002`,
+and later revisions remain under the stable work-item directory. A material
+change after approval creates a new revision with delta and impact analysis;
+do not rewrite approved history. Resolve ambiguous titles/aliases by presenting
+candidates, never guessing.

@@ -2,57 +2,42 @@
 
 ## Preconditions
 
-Read the target work item and verify:
+Resolve the target and run `workflow.py validate` once. Require plan approval,
+understood Git drift, a clean preservation strategy for user changes, an
+eligible task, passed dependencies, and authority for planned side effects.
+If any condition fails, record a blocker through the CLI and stop.
 
-- the current revision has an approved plan;
-- the current Git head matches the recorded base or drift is understood;
-- there are no unrelated user changes that would be overwritten;
-- the selected task is pending and its dependencies passed;
-- a single-writer lease can be obtained for the work item.
+## One-task loop
 
-If any precondition is false, set `state: blocked` or `waiting_input`, record the
-reason, and stop. Do not guess a plan from a title or partial notes.
+1. Load the selected task, current context, its requirement/acceptance slice,
+   and relevant code only.
+2. Run `workflow.py task begin ... --idempotency-key <stable-key>`.
+3. Implement the smallest planned change. Do not opportunistically refactor or
+   rewrite the approved plan.
+4. Run the task's declared checks and project-required gates.
+5. On success, save a concise redacted evidence reference and run
+   `workflow.py task pass ... --evidence <reference> --idempotency-key <key>`.
+6. On failure or dependency outside current authority, run `task fail` or
+   `task block` with a stable error class. Preserve the worktree and report the
+   recovery action.
 
-## Task loop
+A material requirement change returns to plan as a new revision. Code written
+without a passing acceptance check is not a passed task. Limit retries and
+classify build, test, lint, network, authentication, merge, environment, and
+unclear-requirement failures.
 
-For each selected task:
+`task begin/pass/fail/block` validates under its lock and regenerates derived
+views. Do not add validation calls around each transition or evidence-file
+write. Run one final validate at the phase boundary or when diagnosing drift.
 
-1. Read its requirements, acceptance criteria, scope, prior evidence, and
-   relevant `context.md`.
-2. Append `task.started` and set `status: in_progress`.
-3. Inspect existing code and follow project conventions. Preserve unrelated user
-   changes and avoid opportunistic refactors.
-4. Implement the smallest change that satisfies the task, including tests and
-   documentation required by the plan.
-5. Run the task's validation commands. Add redacted evidence references.
-6. On success, set `status: passed`, update traceability, append `task.passed`,
-   and regenerate `context.md` and `handoff.md`.
-7. On failure, set `failed` or `blocked`, append the error class and evidence,
-   preserve the worktree, and state the next action.
+## Scope and completion
 
-Never mark a task passed because code was written. The acceptance condition and
-its validation must pass. Do not run unlimited retries; classify build, test,
-lint, network, authentication, merge, and unclear-requirement failures.
+Execute all eligible tasks by dependency order unless the user limits the
+scope. `resume` uses structured state and the latest event, then rechecks Git
+and external facts; it never relies on chat memory.
 
-## Scope and side effects
-
-- Default execution may edit code on a feature branch or isolated worktree and
-  run local tests.
-- Creating or updating external Issues/PRs, pushing, merging, deploying,
-  restarting services, changing production data, and closing work items require
-  explicit authorization and repository gates.
-- A discovered requirement change pauses execution and creates a new revision.
-  Do not rewrite approved plan sections to make the current implementation fit.
-- Do not bypass dependencies, protected branches, security checks, or rollback
-  gates because a task is urgent.
-
-## Completion
-
-After all eligible tasks pass, run the planned integration/build/security checks,
-write verification evidence, set `delivery: implemented`, and stop at
-`phase: review`. Report completed/remaining/blocked tasks, tests, changed files,
-and the exact review command.
-
-`--task` executes only the named task. `--until` stops after the named task.
-`--resume` continues from the last successful event after rechecking Git and
-external facts. Safe parallel execution is opt-in and requires disjoint scope.
+Do not create external issues/PRs, push, merge, deploy, restart services, change
+production data, or close work items without explicit authorization. After the
+last task passes, the CLI sets `delivery: implemented`, moves to `phase: review`,
+and regenerates state/context/indexes. Report changed files, checks, remaining
+work, blockers, and the exact review command.

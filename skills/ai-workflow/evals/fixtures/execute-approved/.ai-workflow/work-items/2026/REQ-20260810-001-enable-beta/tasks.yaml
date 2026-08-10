@@ -1,0 +1,20 @@
+[
+  {
+    "id": "TASK-001",
+    "revision": "R001",
+    "title": "Enable beta search default",
+    "status": "pending",
+    "depends_on": [],
+    "requirements": ["REQ-BETA-001"],
+    "acceptance": ["AC-001"],
+    "scope": ["src/feature_flags.py"],
+    "expected_behavior": "enabled('beta_search') returns true by default",
+    "validation": ["python3 -m unittest discover -s tests -v"],
+    "evidence": [],
+    "rollback": "Restore beta_search to false",
+    "done_condition": "The declared unittest passes",
+    "attempt": 0,
+    "failure": null,
+    "last_event": null
+  }
+]

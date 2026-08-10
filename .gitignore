@@ -17,3 +17,4 @@ yarn-error.log*
 # Local agent state
 .claude/
 .agents/
+ai-workflow-workspace/

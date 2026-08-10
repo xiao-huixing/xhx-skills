@@ -28,10 +28,11 @@ npx skills add xiao-huixing/xhx-skills@ai-workflow
 npx skills add xiao-huixing/xhx-skills@bug-fix
 ```
 
-The two skills share a `.ai-workflow/` directory in the target project. The
-first version uses Markdown/YAML/NDJSON files and includes a deterministic
-structure and event-log validator; it does not require a separate workflow
-service.
+The two skills share a `.ai-workflow/` directory in the target project.
+`ai-workflow` uses a deterministic Python CLI for initialization, validation,
+serialized recoverable transitions, status, history, and indexes. Read-only
+queries take a fast path without repository scans or storage initialization;
+delivery work can select light, standard, or strict evidence depth.
 
 Install interactively (the CLI lists every skill in this repo):
 

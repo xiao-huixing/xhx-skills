@@ -3,47 +3,62 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "把这份 PRD 放进现有项目，先分析代码和现有能力，提出会影响范围的疑问，最后输出可执行计划，不要改代码。",
-      "expected_output": "创建 REQ-* 工作项，记录项目事实、问题、假设、验收标准和依赖任务，并停在等待计划审批。",
-      "files": [],
+      "prompt": "使用 $ai-workflow 查看这个项目的工作流状态。不要创建或修改任何文件。",
+      "expected_output": "直接走 status 快路径，报告尚未初始化，不扫描项目、不创建 .ai-workflow。",
+      "files": [
+        "evals/fixtures/uninitialized/README.md"
+      ],
       "expectations": [
-        "选择 plan 模式",
-        "不修改产品代码",
-        "所有需求映射到验收标准、任务和验证命令",
-        "没有阻塞问题时才等待计划审批"
+        "运行 workflow.py status，而不是人工推断状态",
+        "报告 status=not_initialized",
+        "没有创建 .ai-workflow，也没有修改输入文件",
+        "没有读取与 status 无关的仓库文件"
       ]
     },
     {
       "id": 2,
-      "prompt": "继续执行 REQ-20260807-001-demo，只做到数据库任务。",
-      "expected_output": "读取已批准计划，按依赖执行到指定任务，更新任务状态、事件和交接信息，不执行后续任务。",
-      "files": [],
+      "prompt": "使用 $ai-workflow plan：为这个小型 Python 定价模块增加会员九折，订单金额计算后保留两位小数。先分析现有实现并输出可执行计划，不要修改产品代码。",
+      "expected_output": "因金额与舍入语义选择 strict track，创建可验证的 REQ 工作项和精简计划，任务覆盖行为、测试与舍入规则，停在显式审批门。",
+      "files": [
+        "evals/fixtures/plan-small/README.md",
+        "evals/fixtures/plan-small/src/pricing.py",
+        "evals/fixtures/plan-small/tests/test_pricing.py"
+      ],
       "expectations": [
-        "按依赖顺序执行",
-        "更新 tasks.yaml 和 events.ndjson",
-        "不越过 --until 指定的任务"
+        "选择 strict track，并仅检查定价模块及其测试",
+        "不修改 src/pricing.py 或 tests/test_pricing.py",
+        "通过 CLI 初始化、plan-ready 和 validate 工作项",
+        "任务具有完整 schema、依赖、验收标准、验证命令、回滚和完成条件",
+        "最终 phase=plan、state=waiting_input、next_action=approve_plan"
       ]
     },
     {
       "id": 3,
-      "prompt": "审核 REQ-20260807-001-demo 的实现结果，先不要改代码。",
-      "expected_output": "只读检查计划、差异、测试和验收链，输出审核结果、风险和整改任务。",
-      "files": [],
+      "prompt": "使用 $ai-workflow execute 执行 REQ-20260810-001-enable-beta，只完成 TASK-001：把 beta_search 的默认值设为 true，运行任务声明的测试并记录证据。不要执行任何额外工作。",
+      "expected_output": "验证已批准计划，仅修改目标 flag，按 begin/pass 状态机记录事件和证据，完成后进入 review。",
+      "files": [
+        "evals/fixtures/execute-approved/README.md",
+        "evals/fixtures/execute-approved/src/feature_flags.py",
+        "evals/fixtures/execute-approved/tests/test_feature_flags.py",
+        "evals/fixtures/execute-approved/.ai-workflow/project/overview.md",
+        "evals/fixtures/execute-approved/.ai-workflow/project/modules.yaml",
+        "evals/fixtures/execute-approved/.ai-workflow/capabilities/index.yaml",
+        "evals/fixtures/execute-approved/.ai-workflow/indexes/active.yaml",
+        "evals/fixtures/execute-approved/.ai-workflow/indexes/catalog.jsonl",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/manifest.yaml",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/context.md",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/tasks.yaml",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/execution/state.yaml",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/execution/events.ndjson",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/revisions/R001/input.md",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/revisions/R001/plan.md"
+      ],
       "expectations": [
-        "选择 review 模式",
-        "默认不修改代码",
-        "审核结论有证据和发布风险"
-      ]
-    },
-    {
-      "id": 4,
-      "prompt": "恢复上次中断的需求开发。",
-      "expected_output": "从结构化状态、最后事件和交接文件找到唯一工作项并从最后成功任务继续；事实漂移时暂停。",
-      "files": [],
-      "expectations": [
-        "不依赖聊天记录恢复",
-        "找不到唯一工作项时不猜测",
-        "检测事实漂移并阻塞"
+        "先运行 validate，并确认 plan_approved=true 和 TASK-001 可执行",
+        "只修改 src/feature_flags.py 中 beta_search 的默认值",
+        "通过 CLI 记录 task.started 和 task.passed，使用稳定 idempotency key",
+        "运行 python3 -m unittest discover -s tests -v 并记录通过证据",
+        "最终任务为 passed、phase=review、delivery=implemented"
       ]
     }
   ]

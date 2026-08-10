@@ -6,7 +6,7 @@
 
 ## Current Phase
 
-Phase 10: First version implementation
+Phase 12: `ai-workflow` P0 optimization
 
 ## Phases
 
@@ -74,6 +74,24 @@ Phase 10: First version implementation
 - [x] 增加工作流结构与事件日志校验脚本
 - [x] 增加最小单元测试和 skill eval 用例
 - [x] 更新 README 的安装入口
+- **Status:** complete
+
+### Phase 11: `ai-workflow` 性能与效果审计
+
+- [x] 审阅 Skill 入口、模式引用、存储协议、模板、脚本和现有 eval
+- [x] 结合真实使用链路定位慢点、无效约束和上下文膨胀来源
+- [x] 查阅最新一手资料，核验 Skill progressive disclosure、触发与评测实践
+- [x] 给出按收益、风险和实施成本排序的优化方案与验证指标
+- **Status:** complete
+
+### Phase 12: `ai-workflow` P0 优化
+
+- [x] 冻结当前 Skill 快照并建立可运行基线
+- [x] 先补确定性 CLI、schema、状态迁移和只读 fast-path 的失败测试
+- [x] 实现原子 `init/status/resolve/history/validate/task/review/index` CLI
+- [x] 将 Skill 收敛为薄路由器，按模式加载并缩窄隐式触发
+- [x] 增加 `light/standard/strict` 分级和真实 fixture eval
+- [x] 运行单元测试、静态检查、差异审查和 Skill 对照评测
 - **Status:** complete
 
 ## Key Questions

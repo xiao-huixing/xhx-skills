@@ -1,70 +1,58 @@
 # Plan Mode
 
-## Goal
+Planning turns a requirement into an approved execution contract. It may write
+workflow artifacts but must not modify product code.
 
-Turn a PRD or requirement into a plan another agent can execute without
-repeating the discovery conversation. Planning is analysis and artifact writing;
-it does not modify product code.
+## Start
 
-## Discovery order
+1. Read applicable repository rules and the supplied PRD.
+2. Select `light`, `standard`, or `strict` using the router criteria.
+3. If no work item exists, run `workflow.py init` with the real date, title,
+   track, and current base commit. When the title is not Latin text, also pass a
+   concise lowercase ASCII `--slug`. For a revision, resolve and validate the
+   existing item; do not create a duplicate.
+4. Inspect only relevant entry points, module boundaries, interfaces, data,
+   configuration, tests, and delivery rules. Cite paths, symbols, or commands
+   behind important conclusions.
+5. Search workflow history only when the existing active/catalog index contains
+   a plausible related item; a newly initialized empty catalog needs no search.
 
-1. Read repository instructions, project overview, build/test commands, and
-   current workflow state.
-2. Inspect entry points, module boundaries, relevant interfaces, data models,
-   configuration, external services, tests, CI, and deployment notes.
-3. Read the supplied PRD and normalize requirements to stable `REQ-*` and
-   acceptance criteria to `AC-*` IDs.
-4. Compare desired behavior with current behavior. Cite file paths, symbols,
-   commands, or existing tests for important conclusions.
-5. Inspect related active and completed work items by capability, module, API,
-   and path. Load details only when relevant.
+Batch related discovery and file reads. After successful `init`, use its JSON
+output as the ID and do not reread generated placeholders or run a pre-edit
+validation; initialization is already deterministic. Existing items still
+require validation before edits.
 
-## Questions
+## Clarification
 
-Ask only questions whose answers can change scope, behavior, architecture,
-data/security, compatibility, validation, or rollout. Group 3-7 blocking
-questions per round and explain why each is needed. For non-blocking unknowns,
-choose a conservative assumption, label it `[Assumption]`, and include it in the
-approval summary. Never hide an assumption as a confirmed requirement.
+Ask only questions that can change scope, behavior, architecture, data/security,
+compatibility, acceptance, rollout, or verification. Group blockers into one
+concise round where possible. Record conservative non-blocking assumptions and
+make them visible at approval; never present assumptions as facts.
 
-If the user says to proceed without answering, preserve the assumptions and ask
-for confirmation at plan approval.
+## Artifacts
 
-## Plan output
+Write the current revision's `input.md` and `plan.md`; add questions, delta, or
+decisions only when they carry information. The plan covers goal, non-goals,
+current behavior, proposed behavior, risks, rollback, and verification.
 
-Write the current revision's files:
+Write dependency-ordered `tasks.yaml`. Every task must include all fields in
+[schemas.md](schemas.md), stay within one focused execution slice, and trace
+requirements to acceptance criteria, exact scope, validation, evidence,
+rollback, and done condition. Mark parallel work only when scope is disjoint.
 
-- `input.md`: source PRD, scope, source links, and normalized requirements.
-- `questions.md`: questions, answers, assumptions, and unresolved blockers.
-- `plan.md`: goal, non-goals, current behavior, design, risks, rollback, and
-  verification strategy.
-- `delta.md`: changes from the previous revision, if this is a revision.
-- `tasks.yaml`: dependency-ordered tasks with exact scope and validation.
-- `decisions.md`: durable decisions and rejected alternatives.
-- `context.md`: a short recovery summary.
+## Approval gate
 
-Each task must be small enough for one focused execution session and contain:
+Run `workflow.py validate`. Before approval, verify that no blocker remains and
+every requirement maps to a task and real validation. Planning-ready state is:
 
-```text
-TASK ID, requirements, acceptance criteria, dependencies, scope,
-expected behavior, validation commands, evidence, rollback, and done condition
+```yaml
+phase: plan
+state: waiting_input
+next_action: approve_plan
 ```
 
-Group tasks by dependency and mark safe parallel work only when file scope does
-not overlap. Include integration, migration, security, UI, and documentation
-work when the requirement needs them.
-
-## Plan gate
-
-Before setting `state: waiting_plan_approval`, verify:
-
-- goals, non-goals, affected capabilities, and acceptance criteria are explicit;
-- every requirement maps to at least one task and validation;
-- dependencies, file scope, commands, rollback, and risk are present;
-- the base Git commit and relevant existing behavior are recorded;
-- no blocking questions remain;
-- assumptions and decisions are visible to the user.
-
-Return a concise approval summary with the work-item ID, impact, task count,
-blocking/assumed items, risks, and the next command. Do not start execution
-until the plan is approved.
+The CLI does not infer semantic readiness. Once the artifacts validate, run
+`workflow.py plan-ready` to update canonical state and derived views atomically,
+then validate again. Present the work-item ID, track, impact, task count,
+assumptions, risks, and approval command. Run `workflow.py approve-plan` only
+after explicit user approval.
