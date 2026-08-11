@@ -1,14 +1,13 @@
-# Schema Version 1
+# Schema Version 2
 
 The CLI writes JSON-compatible YAML so it works without a YAML dependency. It
-can also read conventional YAML when PyYAML is installed. Keep field names and
-enum meanings stable.
+can also read conventional YAML when PyYAML is installed.
 
-## Manifest
+## Work item snapshot
 
 ```yaml
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "REQ-20260810-001-example",
   "kind": "requirement",
   "title": "Example requirement",
@@ -30,48 +29,57 @@ enum meanings stable.
   },
   "active_task": null,
   "next_action": "approve_plan",
-  "last_event": "EVT-000001",
-  "updated_at": "2026-08-10T00:00:00+00:00"
+  "last_event": "EVT-000002",
+  "updated_at": "2026-08-10T00:01:00+00:00",
+  "revisions": [
+    {
+      "id": "R001",
+      "input": "Add the documented behavior.",
+      "plan": "Implement the scoped change and verify it.",
+      "delta": null,
+      "status": "ready",
+      "approved_at": null
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "revision": "R001",
+      "title": "Implement the first behavior",
+      "status": "pending",
+      "depends_on": [],
+      "requirements": ["REQ-EXAMPLE-001"],
+      "acceptance": ["AC-001"],
+      "scope": ["src/example.py"],
+      "expected_behavior": "The documented behavior is observable",
+      "validation": ["python3 -m unittest"],
+      "evidence": [],
+      "rollback": "Revert the scoped change",
+      "done_condition": "The acceptance check passes",
+      "attempt": 0,
+      "failure": null,
+      "last_event": null
+    }
+  ],
+  "decisions": [],
+  "review": {"result": null, "at": null, "findings": []},
+  "summary": "Example requirement",
+  "evidence": []
 }
 ```
 
-## Task
-
-```yaml
-[
-  {
-    "id": "TASK-001",
-    "revision": "R001",
-    "title": "Implement the first behavior",
-    "status": "pending",
-    "depends_on": [],
-    "requirements": ["REQ-EXAMPLE-001"],
-    "acceptance": ["AC-001"],
-    "scope": ["src/example.py"],
-    "expected_behavior": "The documented behavior is observable",
-    "validation": ["python3 -m unittest"],
-    "evidence": [],
-    "rollback": "Revert the scoped change",
-    "done_condition": "The acceptance check passes",
-    "attempt": 0,
-    "failure": null,
-    "last_event": null
-  }
-]
-```
-
-Statuses are `pending`, `in_progress`, `passed`, `failed`, `blocked`, and
+Revision statuses are `draft`, `ready`, `approved`, and `superseded`. Task
+statuses are `pending`, `in_progress`, `passed`, `failed`, `blocked`, and
 `skipped`. Every dependency must exist and the graph must be acyclic. A passed
 task must contain evidence.
 
-## Event and derived state
+## Event
 
 ```json
-{"id":"EVT-000001","at":"2026-08-10T00:00:00+00:00","actor":"ai-workflow","type":"work_item.created","refs":[]}
+{"schema_version":1,"id":"EVT-000001","work_item_id":"REQ-20260810-001-example","sequence":1,"at":"2026-08-10T00:00:00+00:00","actor":"ai-workflow","type":"work_item.created","refs":[]}
 ```
 
-Every event requires `id`, `at`, `actor`, `type`, and list-valued `refs`.
-Transition events may add `task`, `result`, `error_class`, or
-`idempotency_key`. The CLI derives state with `schema_version`, `phase`,
-`state`, `active_task`, `last_success`, `blocked_by`, `next_action`, and
-`updated_at`; its matching manifest fields must never drift.
+Every event requires `schema_version`, `id`, `work_item_id`, `sequence`, `at`,
+`actor`, `type`, and list-valued `refs`. Sequences start at one, are contiguous,
+and match the event ID. Transition events may add `task`, `result`,
+`error_class`, or `idempotency_key`.

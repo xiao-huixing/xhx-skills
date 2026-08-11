@@ -10,7 +10,7 @@
 - 用户希望主流程只有三步：规划、完整执行、结果审核；既能任选其中一步，也能一键连续执行全部步骤。
 - 工作流必须持续记录任务进度，后续需求自动获得已发布行为与历史改动上下文，不要求用户反复描述。
 - 历史规模增大后必须结构化存储并按索引、相关性和变更关系按需加载，不能把全部历史塞进模型上下文。
-- 当前任务是调研与方案分析，未授权实施产品代码。
+- 用户已授权按调研建议实施 `ai-workflow` 双文件运行时存储；范围不包含 `bug-fix` 或 SQLite canonical store。
 
 ## Research Findings
 
@@ -109,6 +109,33 @@
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
 - GitHub deployment protection: https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
 - Temporal durable execution: https://docs.temporal.io/
+
+## 2026-08-11 Runtime Storage Minimization
+
+- 当前 `init` 固定写入 12 个路径，规划阶段加入 `plan.md` 后通常达到 13 个；其中 `state`、`context`、`active` 和 `catalog` 都是可重建派生视图。
+- OpenAI 的 progressive disclosure 约束 Skill 包的加载方式，不要求目标项目生成特定数量的 runtime 文件；运行时布局可以独立收敛。
+- 保留 Git diff/merge 与分支隔离时，推荐每工作项仅保留 `work-item.yaml + events.jsonl`：前者是 current snapshot，后者是 append-only audit log。
+- `manifest`、`tasks`、revision input/plan、decisions、review、summary 与 evidence refs 合并进 `work-item.yaml`；索引、context、handoff 和 state 由 CLI 按需输出，不持久化。
+- 单个项目级 YAML/JSONL 虽然文件总数更少，但会形成跨工作项、跨分支的共同写入热点；适合严格单 writer 的小型本地流程，不适合作为默认协作模型。
+- SQLite 提供单文件、查询与 transaction，但 Git 对 binary 没有普通文本 diff/merge 体验；因此适合作为 ignored cache 或非 Git canonical store，而非当前 Git-versioned MVP 的权威文件。
+- 两文本文件不具备 SQLite 的天然跨文件 ACID，必须保留单 CLI writer、atomic replace、`last_event_id`、幂等键与中断恢复测试。
+
+## 2026-08-11 Two-File Implementation Baseline
+
+- 现有 CLI 的 canonical model 分散在 `manifest.yaml`、`tasks.yaml` 和 `execution/events.ndjson`，每次 mutation 还重写 state、context 与两个 root index。
+- 规划阶段当前依赖 agent 直接编辑 `tasks.yaml` 和 revision Markdown，和“CLI 是唯一 writer”冲突；双文件布局需要增加 `set-plan` 命令，把 plan、input 与 tasks 一次导入 `work-item.yaml`。
+- 双文件 schema 采用 `work-item.yaml` schema version 2，保留现有 lifecycle 字段并内联 revisions、tasks、decisions、review、summary 与 evidence refs；event 增加 schema version、work-item ID 和单调 sequence，便于校验与未来迁移。
+- 旧 schema version 1 不自动删除或覆盖，validator 应给出 legacy layout 错误；本轮不执行任何真实项目数据迁移。
+
+## 2026-08-11 Two-File Implementation Results
+
+- `init` 现在每个需求只创建 `work-item.yaml` 和 `events.jsonl`，固定持久化文件数由 12 个降为 2 个；规划内容、任务、决策、审核与证据引用统一内联到 snapshot。
+- 新增 `set-plan` 作为规划数据唯一导入入口，消除 agent 直接编辑结构化状态的例外；`plan-ready`、审批、任务迁移和审核均只提交 snapshot 与 event log。
+- `review needs_changes` 可通过 `--remediation-tasks-file` 原子导入返工任务，避免 CLI-only writer 让审核返工路径变成不可达状态。
+- `status`、`resolve`、`history` 和 `refresh-index` 从 snapshot 按需计算，不再写项目概览、能力清单、索引、context、state 或 handoff。
+- schema version 2 event 增加 `work_item_id` 与单调 `sequence`；validator 强制每需求恰好两个文件、snapshot/event 指针一致、任务 DAG 与生命周期门禁有效。
+- 旧布局只读保留并明确拒绝；`init` 在已有无效或旧布局上也会先失败，避免悄悄混写新旧 schema。
+- SQLite 未引入 canonical store，原因保持不变：虽然是单文件且可拷贝，但 binary Git diff/merge 与分支协作体验不适合当前 Git-versioned 工作流。
 
 ## Visual/Browser Findings
 

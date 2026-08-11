@@ -29,6 +29,12 @@ class SkillContractTest(unittest.TestCase):
         combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
         self.assertNotIn("waiting_plan_approval", combined)
         self.assertIn("state: waiting_input", combined)
+        self.assertIn("work-item.yaml", combined)
+        self.assertIn("events.jsonl", combined)
+        self.assertNotIn("manifest.yaml", combined)
+        self.assertNotIn("tasks.yaml", combined)
+        self.assertNotIn("execution/state.yaml", combined)
+        self.assertNotIn(".sqlite", combined)
 
     def test_plugin_does_not_force_generic_invocation(self):
         manifest = json.loads((REPOSITORY / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))

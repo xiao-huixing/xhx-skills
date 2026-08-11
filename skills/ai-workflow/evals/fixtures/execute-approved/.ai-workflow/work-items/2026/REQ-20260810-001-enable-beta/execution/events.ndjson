@@ -1,3 +1,0 @@
-{"id":"EVT-000001","at":"2026-08-10T00:00:00+00:00","actor":"ai-workflow","type":"work_item.created","refs":[]}
-{"id":"EVT-000002","at":"2026-08-10T00:01:00+00:00","actor":"ai-workflow","type":"plan.ready","refs":[],"idempotency_key":"ready-beta"}
-{"id":"EVT-000003","at":"2026-08-10T00:02:00+00:00","actor":"ai-workflow","type":"plan.approved","refs":[],"idempotency_key":"approve-beta"}

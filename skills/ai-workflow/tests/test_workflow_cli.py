@@ -36,10 +36,26 @@ class WorkflowCliTest(unittest.TestCase):
         payload = json.loads(result.stdout)
         return root, payload["work_item"]
 
-    def write_tasks(self, root: Path, work_item: str, tasks: list[dict]) -> Path:
-        path = root / "work-items/2026" / work_item / "tasks.yaml"
-        path.write_text(json.dumps(tasks), encoding="utf-8")
-        return path
+    def set_plan(self, root: Path, work_item: str, tasks: list[dict]) -> None:
+        plan_path = root.parent / "test-plan.md"
+        tasks_path = root.parent / "test-tasks.json"
+        plan_path.write_text("# Plan\n\nImplement the approved behavior.\n", encoding="utf-8")
+        tasks_path.write_text(json.dumps(tasks), encoding="utf-8")
+        try:
+            self.run_cli(
+                "set-plan",
+                "--root",
+                str(root),
+                "--work-item",
+                work_item,
+                "--plan-file",
+                str(plan_path),
+                "--tasks-file",
+                str(tasks_path),
+            )
+        finally:
+            plan_path.unlink(missing_ok=True)
+            tasks_path.unlink(missing_ok=True)
 
     def task(self, task_id: str, depends_on: list[str] | None = None) -> dict:
         return {
@@ -75,6 +91,18 @@ class WorkflowCliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root, work_item = self.init_workflow(directory)
             self.assertEqual("REQ-20260810-001-demo-requirement", work_item)
+            item = root / "work-items/2026" / work_item
+            files = sorted(str(path.relative_to(root)) for path in root.rglob("*") if path.is_file())
+            self.assertEqual(
+                [
+                    f"work-items/2026/{work_item}/events.jsonl",
+                    f"work-items/2026/{work_item}/work-item.yaml",
+                ],
+                files,
+            )
+            record = json.loads((item / "work-item.yaml").read_text(encoding="utf-8"))
+            self.assertEqual(2, record["schema_version"])
+            self.assertEqual("R001", record["revisions"][0]["id"])
             self.run_cli("validate", "--root", str(root), "--work-item", work_item)
             resolved = self.run_cli("resolve", "--root", str(root), work_item)
             self.assertEqual(work_item, json.loads(resolved.stdout)["work_item"])
@@ -85,6 +113,20 @@ class WorkflowCliTest(unittest.TestCase):
             self.assertEqual("plan", payload["phase"])
             self.assertEqual("light", payload["track"])
             self.assertEqual({"total": 0, "passed": 0, "blocked": 0}, payload["tasks"])
+
+    def test_refresh_index_is_read_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work_item = self.init_workflow(directory)
+            result = self.run_cli("refresh-index", "--root", str(root))
+            self.assertEqual("derived", json.loads(result.stdout)["status"])
+            files = sorted(str(path.relative_to(root)) for path in root.rglob("*") if path.is_file())
+            self.assertEqual(
+                [
+                    f"work-items/2026/{work_item}/events.jsonl",
+                    f"work-items/2026/{work_item}/work-item.yaml",
+                ],
+                files,
+            )
 
     def test_init_accepts_ascii_slug_for_non_latin_title(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -123,10 +165,34 @@ class WorkflowCliTest(unittest.TestCase):
             self.assertIn("slug", result.stderr)
             self.assertFalse(root.exists())
 
+    def test_init_rejects_legacy_root_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work_item = self.init_workflow(directory)
+            item = root / "work-items/2026" / work_item
+            record_path = item / "work-item.yaml"
+            legacy_path = item / "manifest.yaml"
+            legacy_path.write_text(record_path.read_text(encoding="utf-8"), encoding="utf-8")
+            record_path.unlink()
+
+            result = self.run_cli(
+                "init",
+                "--root",
+                str(root),
+                "--title",
+                "Second requirement",
+                "--date",
+                "20260810",
+                expected=1,
+            )
+
+            self.assertIn("legacy storage layout is unsupported", result.stderr)
+            self.assertEqual([item], [path for path in (root / "work-items/2026").iterdir()])
+            self.assertTrue(legacy_path.exists())
+
     def test_task_transition_is_idempotent_and_finishes_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work_item = self.init_workflow(directory)
-            self.write_tasks(root, work_item, [self.task("TASK-001")])
+            self.set_plan(root, work_item, [self.task("TASK-001")])
             blocked = self.run_cli(
                 "approve-plan",
                 "--root",
@@ -163,8 +229,8 @@ class WorkflowCliTest(unittest.TestCase):
                 "begin-task-1",
             )
             item = root / "work-items/2026" / work_item
-            events = (item / "execution/events.ndjson").read_text(encoding="utf-8").splitlines()
-            self.assertEqual(4, len(events))
+            events = (item / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(5, len(events))
             failed = self.run_cli(
                 "task",
                 "pass",
@@ -226,7 +292,7 @@ class WorkflowCliTest(unittest.TestCase):
     def test_dependency_and_illegal_transition_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work_item = self.init_workflow(directory)
-            self.write_tasks(
+            self.set_plan(
                 root,
                 work_item,
                 [self.task("TASK-001"), self.task("TASK-002", ["TASK-001"])],
@@ -260,14 +326,74 @@ class WorkflowCliTest(unittest.TestCase):
             )
             self.assertIn("in_progress", illegal.stderr)
 
+    def test_review_needs_changes_imports_remediation_tasks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work_item = self.init_workflow(directory)
+            self.set_plan(root, work_item, [self.task("TASK-001")])
+            self.plan_ready(root, work_item)
+            self.run_cli("approve-plan", "--root", str(root), "--work-item", work_item)
+            self.run_cli(
+                "task",
+                "begin",
+                "--root",
+                str(root),
+                "--work-item",
+                work_item,
+                "--task",
+                "TASK-001",
+            )
+            self.run_cli(
+                "task",
+                "pass",
+                "--root",
+                str(root),
+                "--work-item",
+                work_item,
+                "--task",
+                "TASK-001",
+                "--evidence",
+                "tests passed",
+            )
+            remediation_path = root.parent / "remediation-tasks.json"
+            remediation_path.write_text(
+                json.dumps([self.task("TASK-002")]),
+                encoding="utf-8",
+            )
+            try:
+                self.run_cli(
+                    "review",
+                    "--root",
+                    str(root),
+                    "--work-item",
+                    work_item,
+                    "--result",
+                    "needs_changes",
+                    "--remediation-tasks-file",
+                    str(remediation_path),
+                )
+            finally:
+                remediation_path.unlink(missing_ok=True)
+
+            status = self.run_cli(
+                "status", "--root", str(root), "--work-item", work_item, "--format", "json"
+            )
+            payload = json.loads(status.stdout)
+            self.assertEqual("execute", payload["phase"])
+            self.assertEqual("TASK-002", payload["next_action"])
+            self.assertEqual(2, payload["tasks"]["total"])
+            self.run_cli("validate", "--root", str(root), "--work-item", work_item)
+
     def test_mutation_recovers_interrupted_transaction_before_validation(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work_item = self.init_workflow(directory)
-            self.write_tasks(root, work_item, [self.task("TASK-001")])
+            self.set_plan(root, work_item, [self.task("TASK-001")])
             transaction = root / ".transactions/interrupted"
             transaction.mkdir(parents=True)
-            target = f"work-items/2026/{work_item}/context.md"
-            (transaction / "0000.tmp").write_text("# Recovered Context\n", encoding="utf-8")
+            target = f"work-items/2026/{work_item}/work-item.yaml"
+            record_path = root / target
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            recovered = {**record, "summary": "Recovered summary"}
+            (transaction / "0000.tmp").write_text(json.dumps(recovered), encoding="utf-8")
             (transaction / "transaction.json").write_text(
                 json.dumps(
                     {
@@ -281,14 +407,14 @@ class WorkflowCliTest(unittest.TestCase):
             self.plan_ready(root, work_item)
             self.run_cli("approve-plan", "--root", str(root), "--work-item", work_item)
 
-            context = root / target
-            self.assertIn("Current Context", context.read_text(encoding="utf-8"))
+            current = json.loads(record_path.read_text(encoding="utf-8"))
+            self.assertEqual("Recovered summary", current["summary"])
             self.assertFalse((root / ".transactions").exists())
 
     def test_transaction_recovery_rejects_path_escape(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work_item = self.init_workflow(directory)
-            self.write_tasks(root, work_item, [self.task("TASK-001")])
+            self.set_plan(root, work_item, [self.task("TASK-001")])
             transaction = root / ".transactions/untrusted"
             transaction.mkdir(parents=True)
             (transaction / "0000.tmp").write_text("escape", encoding="utf-8")
@@ -317,7 +443,7 @@ class WorkflowCliTest(unittest.TestCase):
     def test_mutation_discards_transaction_without_commit_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work_item = self.init_workflow(directory)
-            self.write_tasks(root, work_item, [self.task("TASK-001")])
+            self.set_plan(root, work_item, [self.task("TASK-001")])
             transaction = root / ".transactions/not-committed"
             transaction.mkdir(parents=True)
             (transaction / "0000.tmp").write_text("staged only", encoding="utf-8")

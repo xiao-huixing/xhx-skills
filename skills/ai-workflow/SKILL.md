@@ -11,9 +11,9 @@ description: >-
 
 # AI Workflow
 
-Use `scripts/workflow.py` as the only writer of structured workflow state. Run
-it from this Skill directory with `python3`; pass the target repository's
-`.ai-workflow` path through `--root`.
+Use `scripts/workflow.py` as the only writer of workflow state. Run it from this
+Skill directory with `python3`; pass the target repository's `.ai-workflow`
+path through `--root`.
 
 ## Route first
 
@@ -37,7 +37,7 @@ then only the applicable reference:
 
 ## Work depth
 
-Choose the smallest sufficient track and record it in the manifest:
+Choose the smallest sufficient track and store it in `work-item.yaml`:
 
 - `light`: local, reversible, low-risk work; targeted discovery and tests.
 - `standard`: multi-file or externally visible behavior; normal traceability,
@@ -45,42 +45,36 @@ Choose the smallest sufficient track and record it in the manifest:
 - `strict`: security, auth, money, destructive migration, production control,
   or regulated data; explicit threat/risk review and stronger evidence.
 
-Do not load every project instruction, history item, or evidence file. Read the
-repository rules plus only the modules, tests, and workflow slices needed for
-the current phase and task.
+Read repository rules plus only the modules, tests, and workflow slices needed
+for the current phase and task.
 
 ## State rules
 
-- `manifest.yaml`, `tasks.yaml`, and `execution/events.ndjson` are canonical.
-- `execution/state.yaml`, `context.md`, and indexes are derived by the CLI.
-- Never edit canonical progress fields by hand. Mutating CLI commands validate
-  under the writer lock; do not wrap them in redundant validation calls. For
-  manual semantic task/manifest edits, validate once after the edit (and once
-  before only when updating an existing work item).
+- Each requirement has exactly two persistent files: `work-item.yaml` is the
+  current snapshot and `events.jsonl` is its ordered audit log.
+- Never edit those files by hand. Use `set-plan`, `plan-ready`, `approve-plan`,
+  `task`, and `review`; mutating commands validate under the writer lock.
 - The planning gate uses `phase: plan`, `state: waiting_input`, and
   `next_action: approve_plan`. Only explicit user approval permits
   `workflow.py approve-plan`.
-- Begin, pass, fail, or block a task through `workflow.py task`; passing requires
-  a redacted evidence reference. Review results use `workflow.py review`.
-- External issues, commits, pushes, PRs, merges, deploys, service restarts, and
-  production changes require their own authorization.
+- Passing a task requires a redacted evidence reference. External issues,
+  commits, pushes, PRs, merges, deploys, service restarts, and production
+  changes require their own authorization.
 
 ## Mode outcomes
 
-- `plan`: create or revise semantic artifacts and dependency-ordered tasks;
-  never modify product code; stop for approval.
+- `plan`: create a temporary input, plan, and task list; import them with
+  `set-plan`; mark ready; never modify product code; stop for approval.
 - `execute`: require an approved plan, work one eligible task at a time, run its
   declared validation, and record evidence through the CLI.
-- `resume`: resolve the item, validate stored state and Git facts, then continue
-  the recorded next task; do not reconstruct state from chat.
-- `review`: default to read-only; trace requirements to diff and real evidence;
-  write `review.md`, then record one review result through the CLI.
+- `resume`: resolve and validate stored state plus Git facts, then continue the
+  recorded next task; do not reconstruct state from chat.
+- `review`: default to read-only; trace requirements to diff and evidence;
+  import findings and any remediation tasks with `review`, then record one result.
 - `all`: plan, approval, execute, review; remediation returns to execute.
 
 ## Response
 
 Report the work-item ID, mode, track, phase/state, progress, changed files,
-validation or review evidence, blockers, and exact next command. For execute or
-review, name the preflight gate and CLI transition used. Prefer a
-repository-relative next command over a fixture-specific absolute path. Never
-claim a merge, deployment, or production verification without direct evidence.
+evidence, blockers, and exact next command. Never claim a merge, deployment, or
+production verification without direct evidence.

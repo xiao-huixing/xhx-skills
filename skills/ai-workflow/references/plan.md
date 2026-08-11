@@ -1,49 +1,51 @@
 # Plan Mode
 
 Planning turns a requirement into an approved execution contract. It may write
-workflow artifacts but must not modify product code.
+workflow state but must not modify product code.
 
 ## Start
 
 1. Read applicable repository rules and the supplied PRD.
 2. Select `light`, `standard`, or `strict` using the router criteria.
-3. If no work item exists, run `workflow.py init` with the real date, title,
-   track, and current base commit. When the title is not Latin text, also pass a
-   concise lowercase ASCII `--slug`. For a revision, resolve and validate the
-   existing item; do not create a duplicate.
-4. Inspect only relevant entry points, module boundaries, interfaces, data,
-   configuration, tests, and delivery rules. Cite paths, symbols, or commands
-   behind important conclusions.
-5. Search workflow history only when the existing active/catalog index contains
-   a plausible related item; a newly initialized empty catalog needs no search.
+3. Resolve the supplied item. If none exists, run `workflow.py init` with the
+   real date, title, track, current base commit, and an ASCII slug when needed.
+4. Inspect only relevant entry points, boundaries, interfaces, data,
+   configuration, tests, and delivery rules. Cite evidence behind conclusions.
+5. Search history only when the title, aliases, or user context suggest a
+   related item.
 
-Batch related discovery and file reads. After successful `init`, use its JSON
-output as the ID and do not reread generated placeholders or run a pre-edit
-validation; initialization is already deterministic. Existing items still
-require validation before edits.
+After `init`, use its JSON output as the ID; initialization is deterministic.
+Existing items require validation before revision work.
 
 ## Clarification
 
-Ask only questions that can change scope, behavior, architecture, data/security,
-compatibility, acceptance, rollout, or verification. Group blockers into one
-concise round where possible. Record conservative non-blocking assumptions and
-make them visible at approval; never present assumptions as facts.
+Ask only questions that can change scope, behavior, architecture, data or
+security, compatibility, acceptance, rollout, or verification. Group blockers
+where possible. Make conservative non-blocking assumptions visible at approval.
 
-## Artifacts
+## Import the plan
 
-Write the current revision's `input.md` and `plan.md`; add questions, delta, or
-decisions only when they carry information. The plan covers goal, non-goals,
-current behavior, proposed behavior, risks, rollback, and verification.
+Create three temporary files outside `.ai-workflow`:
 
-Write dependency-ordered `tasks.yaml`. Every task must include all fields in
-[schemas.md](schemas.md), stay within one focused execution slice, and trace
-requirements to acceptance criteria, exact scope, validation, evidence,
-rollback, and done condition. Mark parallel work only when scope is disjoint.
+- input text describing the requirement and assumptions;
+- plan text covering goal, non-goals, current/proposed behavior, risks,
+  rollback, and verification;
+- a JSON or YAML list of dependency-ordered tasks matching [schemas.md](schemas.md).
+
+Every task stays within one focused slice and traces requirements to acceptance,
+scope, validation, evidence, rollback, and done condition. Import the files:
+
+```text
+python3 scripts/workflow.py set-plan --root <repo>/.ai-workflow --work-item ID --input-file <input> --plan-file <plan> --tasks-file <tasks> --idempotency-key <key>
+```
+
+Remove the temporary files after successful import. Do not hand-edit stored
+state.
 
 ## Approval gate
 
-Run `workflow.py validate`. Before approval, verify that no blocker remains and
-every requirement maps to a task and real validation. Planning-ready state is:
+Run `workflow.py plan-ready`, then `workflow.py validate`. Confirm no blocker
+remains and every requirement maps to a task and real validation. Ready state is:
 
 ```yaml
 phase: plan
@@ -51,8 +53,5 @@ state: waiting_input
 next_action: approve_plan
 ```
 
-The CLI does not infer semantic readiness. Once the artifacts validate, run
-`workflow.py plan-ready` to update canonical state and derived views atomically,
-then validate again. Present the work-item ID, track, impact, task count,
-assumptions, risks, and approval command. Run `workflow.py approve-plan` only
-after explicit user approval.
+Present the ID, track, impact, task count, assumptions, risks, and approval
+command. Run `workflow.py approve-plan` only after explicit user approval.

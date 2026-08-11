@@ -27,7 +27,8 @@
       "expectations": [
         "选择 strict track，并仅检查定价模块及其测试",
         "不修改 src/pricing.py 或 tests/test_pricing.py",
-        "通过 CLI 初始化、plan-ready 和 validate 工作项",
+        "通过 CLI 初始化、set-plan、plan-ready 和 validate 工作项",
+        "每个需求只持久化 work-item.yaml 和 events.jsonl",
         "任务具有完整 schema、依赖、验收标准、验证命令、回滚和完成条件",
         "最终 phase=plan、state=waiting_input、next_action=approve_plan"
       ]
@@ -40,21 +41,12 @@
         "evals/fixtures/execute-approved/README.md",
         "evals/fixtures/execute-approved/src/feature_flags.py",
         "evals/fixtures/execute-approved/tests/test_feature_flags.py",
-        "evals/fixtures/execute-approved/.ai-workflow/project/overview.md",
-        "evals/fixtures/execute-approved/.ai-workflow/project/modules.yaml",
-        "evals/fixtures/execute-approved/.ai-workflow/capabilities/index.yaml",
-        "evals/fixtures/execute-approved/.ai-workflow/indexes/active.yaml",
-        "evals/fixtures/execute-approved/.ai-workflow/indexes/catalog.jsonl",
-        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/manifest.yaml",
-        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/context.md",
-        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/tasks.yaml",
-        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/execution/state.yaml",
-        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/execution/events.ndjson",
-        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/revisions/R001/input.md",
-        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/revisions/R001/plan.md"
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/work-item.yaml",
+        "evals/fixtures/execute-approved/.ai-workflow/work-items/2026/REQ-20260810-001-enable-beta/events.jsonl"
       ],
       "expectations": [
         "先运行 validate，并确认 plan_approved=true 和 TASK-001 可执行",
+        "工作流状态只保存在 work-item.yaml 和 events.jsonl",
         "只修改 src/feature_flags.py 中 beta_search 的默认值",
         "通过 CLI 记录 task.started 和 task.passed，使用稳定 idempotency key",
         "运行 python3 -m unittest discover -s tests -v 并记录通过证据",

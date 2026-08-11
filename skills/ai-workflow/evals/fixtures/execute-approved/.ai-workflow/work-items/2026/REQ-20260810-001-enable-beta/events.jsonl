@@ -1,0 +1,3 @@
+{"schema_version":1,"id":"EVT-000001","work_item_id":"REQ-20260810-001-enable-beta","sequence":1,"at":"2026-08-10T00:00:00+00:00","actor":"ai-workflow","type":"work_item.created","refs":[]}
+{"schema_version":1,"id":"EVT-000002","work_item_id":"REQ-20260810-001-enable-beta","sequence":2,"at":"2026-08-10T00:01:00+00:00","actor":"ai-workflow","type":"plan.ready","refs":[],"idempotency_key":"ready-beta"}
+{"schema_version":1,"id":"EVT-000003","work_item_id":"REQ-20260810-001-enable-beta","sequence":3,"at":"2026-08-10T00:02:00+00:00","actor":"ai-workflow","type":"plan.approved","refs":[],"idempotency_key":"approve-beta"}

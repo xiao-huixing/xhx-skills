@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from workflow_store import (
+    EVENTS_FILE,
     UsageError,
+    WORK_ITEM_FILE,
+    WORK_ITEM_SCHEMA_VERSION,
     WorkflowError,
     WriterLock,
     commit_files,
@@ -18,19 +21,16 @@ from workflow_store import (
     dump_events,
     event_by_idempotency,
     index_records,
-    index_writes,
     iter_work_items,
     load_data,
     load_events,
-    make_context,
-    make_state,
     next_event,
     now_iso,
     recover_transactions,
     slugify,
     work_item_path,
 )
-from workflow_validation import validate_root
+from workflow_validation import validate_item_data, validate_root
 
 
 def _print_json(value: Any) -> None:
@@ -41,12 +41,11 @@ def _item_data(root: Path, work_item: str) -> tuple[Path, dict[str, Any], list[d
     item = work_item_path(root, work_item)
     if not item.is_dir():
         raise WorkflowError(f"work item not found: {work_item}")
-    manifest = load_data(item / "manifest.yaml")
-    tasks = load_data(item / "tasks.yaml")
-    events = load_events(item / "execution/events.ndjson")
-    if not isinstance(manifest, dict) or not isinstance(tasks, list):
+    record = load_data(item / WORK_ITEM_FILE)
+    events = load_events(item / EVENTS_FILE)
+    if not isinstance(record, dict) or not isinstance(record.get("tasks"), list):
         raise WorkflowError(f"invalid structured state: {item}")
-    return item, manifest, tasks, events
+    return item, record, record["tasks"], events
 
 
 def _ensure_valid(root: Path, work_item: str) -> None:
@@ -56,20 +55,30 @@ def _ensure_valid(root: Path, work_item: str) -> None:
 
 
 def _writes_for_item(
-    root: Path,
     item: Path,
-    manifest: dict[str, Any],
-    tasks: list[dict[str, Any]],
+    record: dict[str, Any],
     events: list[dict[str, Any]],
 ) -> dict[Path, str]:
-    writes = {
-        item / "manifest.yaml": dump_data(manifest),
-        item / "tasks.yaml": dump_data(tasks),
-        item / "execution/events.ndjson": dump_events(events),
-        item / "execution/state.yaml": dump_data(make_state(manifest, tasks, events)),
-        item / "context.md": make_context(manifest, tasks),
+    return {
+        item / EVENTS_FILE: dump_events(events),
+        item / WORK_ITEM_FILE: dump_data(record),
     }
-    return {**writes, **index_writes(root, manifest)}
+
+
+def _updated_revisions(record: dict[str, Any], **values: Any) -> list[dict[str, Any]]:
+    current = record["current_revision"]
+    return [
+        {**revision, **values} if revision.get("id") == current else revision
+        for revision in record["revisions"]
+    ]
+
+
+def _current_revision(record: dict[str, Any]) -> dict[str, Any]:
+    current = record["current_revision"]
+    revision = next((item for item in record["revisions"] if item.get("id") == current), None)
+    if revision is None:
+        raise WorkflowError(f"current revision not found: {current}")
+    return revision
 
 
 def _allocate_id(root: Path, date: str, title: str, kind: str, explicit_slug: str | None = None) -> str:
@@ -90,12 +99,18 @@ def command_init(args: argparse.Namespace) -> int:
         raise UsageError("slug must contain only lowercase ASCII letters, digits, and hyphens")
     with WriterLock(root):
         recover_transactions(root)
+        if (root / "work-items").exists():
+            errors = validate_root(root)
+            if errors:
+                raise WorkflowError("workflow validation failed:\n" + "\n".join(errors))
+        elif any(entry.name != ".writer.lock" for entry in root.iterdir()):
+            raise WorkflowError(f"workflow root is not empty: {root}")
         work_item = _allocate_id(root, args.date, args.title, args.kind, args.slug)
         item = work_item_path(root, work_item)
         timestamp = now_iso()
-        event = next_event([], "work_item.created", refs=[])
-        manifest = {
-            "schema_version": 1,
+        event = next_event([], work_item, "work_item.created", refs=[])
+        record = {
+            "schema_version": WORK_ITEM_SCHEMA_VERSION,
             "id": work_item,
             "kind": args.kind,
             "title": args.title,
@@ -105,6 +120,16 @@ def command_init(args: argparse.Namespace) -> int:
             "state": "waiting_input",
             "delivery": "not_started",
             "current_revision": "R001",
+            "revisions": [
+                {
+                    "id": "R001",
+                    "input": args.title,
+                    "plan": None,
+                    "delta": None,
+                    "status": "draft",
+                    "approved_at": None,
+                }
+            ],
             "base_commit": args.base_commit,
             "capabilities": [],
             "modules": [],
@@ -119,17 +144,14 @@ def command_init(args: argparse.Namespace) -> int:
             "next_action": "write_plan",
             "last_event": event["id"],
             "updated_at": timestamp,
+            "tasks": [],
+            "decisions": [],
+            "review": {"result": None, "at": None, "findings": []},
+            "summary": args.title,
+            "evidence": [],
         }
-        tasks: list[dict[str, Any]] = []
         events = [event]
-        root_writes = {
-            root / "README.md": "# AI Workflow\n\nUse the bundled workflow CLI to inspect and mutate state.\n",
-            root / "project/overview.md": "# Project Overview\n\n- Purpose: unknown\n- Architecture: unknown\n- Quality gates: unknown\n",
-            root / "project/modules.yaml": dump_data([]),
-            root / "capabilities/index.yaml": dump_data([]),
-            item / "revisions/R001/input.md": f"# Input\n\n{args.title}\n",
-        }
-        commit_files(root, {**root_writes, **_writes_for_item(root, item, manifest, tasks, events)})
+        commit_files(root, _writes_for_item(item, record, events))
     _print_json({"status": "initialized", "root": str(root), "work_item": work_item, "track": args.track})
     return 0
 
@@ -138,12 +160,12 @@ def _resolve(root: Path, query: str) -> dict[str, Any]:
     matches: list[dict[str, Any]] = []
     lowered = query.casefold()
     for item in iter_work_items(root):
-        manifest = load_data(item / "manifest.yaml")
-        if not isinstance(manifest, dict):
+        record = load_data(item / WORK_ITEM_FILE)
+        if not isinstance(record, dict):
             continue
-        aliases = [str(alias).casefold() for alias in manifest.get("aliases", [])]
-        if query == item.name or lowered == str(manifest.get("title", "")).casefold() or lowered in aliases:
-            matches.append(manifest)
+        aliases = [str(alias).casefold() for alias in record.get("aliases", [])]
+        if query == item.name or lowered == str(record.get("title", "")).casefold() or lowered in aliases:
+            matches.append(record)
     if not matches:
         raise WorkflowError(f"work item not found: {query}")
     if len(matches) > 1:
@@ -153,8 +175,8 @@ def _resolve(root: Path, query: str) -> dict[str, Any]:
 
 
 def command_resolve(args: argparse.Namespace) -> int:
-    manifest = _resolve(args.root, args.query)
-    _print_json({"work_item": manifest["id"], "title": manifest["title"]})
+    record = _resolve(args.root, args.query)
+    _print_json({"work_item": record["id"], "title": record["title"]})
     return 0
 
 
@@ -168,17 +190,17 @@ def command_status(args: argparse.Namespace) -> int:
         ]
         payload = {"status": "initialized", "active": active}
     else:
-        _, manifest, tasks, _ = _item_data(root, args.work_item)
+        _, record, tasks, _ = _item_data(root, args.work_item)
         payload = {
             "status": "ok",
-            "work_item": manifest["id"],
-            "title": manifest["title"],
-            "track": manifest["track"],
-            "phase": manifest["phase"],
-            "state": manifest["state"],
-            "delivery": manifest["delivery"],
-            "active_task": manifest.get("active_task"),
-            "next_action": manifest.get("next_action"),
+            "work_item": record["id"],
+            "title": record["title"],
+            "track": record["track"],
+            "phase": record["phase"],
+            "state": record["state"],
+            "delivery": record["delivery"],
+            "active_task": record.get("active_task"),
+            "next_action": record.get("next_action"),
             "tasks": {
                 "total": len(tasks),
                 "passed": sum(task.get("status") == "passed" for task in tasks),
@@ -212,28 +234,92 @@ def command_validate(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_plan_ready(args: argparse.Namespace) -> int:
+def command_set_plan(args: argparse.Namespace) -> int:
+    plan = args.plan_file.read_text(encoding="utf-8").strip()
+    if not plan:
+        raise UsageError("set-plan requires a non-empty --plan-file")
+    tasks = load_data(args.tasks_file)
+    if not isinstance(tasks, list) or not tasks or any(not isinstance(task, dict) for task in tasks):
+        raise UsageError("set-plan requires --tasks-file containing a non-empty task list")
+    if any(task.get("status") != "pending" for task in tasks):
+        raise UsageError("set-plan requires every task to start with pending status")
+    supplied_input = args.input_file.read_text(encoding="utf-8").strip() if args.input_file else None
+    if args.input_file and not supplied_input:
+        raise UsageError("set-plan requires a non-empty --input-file")
     with WriterLock(args.root):
         recover_transactions(args.root)
         _ensure_valid(args.root, args.work_item)
-        item, manifest, tasks, events = _item_data(args.root, args.work_item)
+        item, record, _, events = _item_data(args.root, args.work_item)
         repeated = event_by_idempotency(events, args.idempotency_key)
         if repeated:
             _print_json({"status": "idempotent", "event": repeated["id"], "work_item": args.work_item})
             return 0
-        if manifest.get("phase") != "plan" or manifest.get("gates", {}).get("plan_approved"):
+        if record.get("phase") != "plan" or record.get("gates", {}).get("plan_approved"):
+            raise WorkflowError("set-plan requires an unapproved plan phase")
+        revision = _current_revision(record)
+        event = next_event(
+            events,
+            args.work_item,
+            "plan.updated",
+            refs=[],
+            idempotency_key=args.idempotency_key,
+        )
+        updated_record = {
+            **record,
+            "revisions": _updated_revisions(
+                record,
+                input=supplied_input or revision["input"],
+                plan=plan,
+                status="draft",
+                approved_at=None,
+            ),
+            "tasks": tasks,
+            "state": "waiting_input",
+            "next_action": "plan_ready",
+            "last_event": event["id"],
+            "updated_at": event["at"],
+        }
+        updated_events = [*events, event]
+        errors = validate_item_data(item, updated_record, updated_events)
+        if errors:
+            raise WorkflowError("plan update validation failed:\n" + "\n".join(errors))
+        commit_files(args.root, _writes_for_item(item, updated_record, updated_events))
+    _print_json({"status": "updated", "work_item": args.work_item, "tasks": len(tasks)})
+    return 0
+
+
+def command_plan_ready(args: argparse.Namespace) -> int:
+    with WriterLock(args.root):
+        recover_transactions(args.root)
+        _ensure_valid(args.root, args.work_item)
+        item, record, tasks, events = _item_data(args.root, args.work_item)
+        repeated = event_by_idempotency(events, args.idempotency_key)
+        if repeated:
+            _print_json({"status": "idempotent", "event": repeated["id"], "work_item": args.work_item})
+            return 0
+        if record.get("phase") != "plan" or record.get("gates", {}).get("plan_approved"):
             raise WorkflowError("plan-ready requires an unapproved plan phase")
         if not tasks:
             raise WorkflowError("plan-ready requires at least one task")
-        event = next_event(events, "plan.ready", refs=[], idempotency_key=args.idempotency_key)
-        updated_manifest = {
-            **manifest,
+        revision = _current_revision(record)
+        if not isinstance(revision.get("plan"), str) or not revision.get("plan", "").strip():
+            raise WorkflowError("plan-ready requires a stored plan")
+        event = next_event(
+            events,
+            args.work_item,
+            "plan.ready",
+            refs=[],
+            idempotency_key=args.idempotency_key,
+        )
+        updated_record = {
+            **record,
+            "revisions": _updated_revisions(record, status="ready"),
             "state": "waiting_input",
             "next_action": "approve_plan",
             "last_event": event["id"],
             "updated_at": event["at"],
         }
-        commit_files(args.root, _writes_for_item(args.root, item, updated_manifest, tasks, [*events, event]))
+        commit_files(args.root, _writes_for_item(item, updated_record, [*events, event]))
     _print_json({"status": "ready", "work_item": args.work_item, "next_action": "approve_plan"})
     return 0
 
@@ -242,29 +328,38 @@ def command_approve_plan(args: argparse.Namespace) -> int:
     with WriterLock(args.root):
         recover_transactions(args.root)
         _ensure_valid(args.root, args.work_item)
-        item, manifest, tasks, events = _item_data(args.root, args.work_item)
+        item, record, tasks, events = _item_data(args.root, args.work_item)
         repeated = event_by_idempotency(events, args.idempotency_key)
         if repeated:
             _print_json({"status": "idempotent", "event": repeated["id"], "work_item": args.work_item})
             return 0
-        if manifest.get("phase") != "plan":
+        if record.get("phase") != "plan":
             raise WorkflowError("plan approval requires plan phase")
-        if manifest.get("next_action") != "approve_plan":
+        if record.get("next_action") != "approve_plan":
             raise WorkflowError("plan approval requires plan-ready transition")
         if not tasks:
             raise WorkflowError("plan approval requires at least one task")
-        event = next_event(events, "plan.approved", refs=[], idempotency_key=args.idempotency_key)
+        if _current_revision(record).get("status") != "ready":
+            raise WorkflowError("plan approval requires ready revision")
+        event = next_event(
+            events,
+            args.work_item,
+            "plan.approved",
+            refs=[],
+            idempotency_key=args.idempotency_key,
+        )
         first_task = next((task["id"] for task in tasks if task.get("status") == "pending"), None)
-        updated_manifest = {
-            **manifest,
+        updated_record = {
+            **record,
             "phase": "execute",
             "state": "active",
-            "gates": {**manifest["gates"], "plan_approved": True},
+            "gates": {**record["gates"], "plan_approved": True},
+            "revisions": _updated_revisions(record, status="approved", approved_at=event["at"]),
             "next_action": first_task,
             "last_event": event["id"],
             "updated_at": event["at"],
         }
-        commit_files(args.root, _writes_for_item(args.root, item, updated_manifest, tasks, [*events, event]))
+        commit_files(args.root, _writes_for_item(item, updated_record, [*events, event]))
     _print_json({"status": "approved", "work_item": args.work_item, "next_action": first_task})
     return 0
 
@@ -298,12 +393,12 @@ def command_task(args: argparse.Namespace) -> int:
     with WriterLock(args.root):
         recover_transactions(args.root)
         _ensure_valid(args.root, args.work_item)
-        item, manifest, tasks, events = _item_data(args.root, args.work_item)
+        item, record, tasks, events = _item_data(args.root, args.work_item)
         repeated = event_by_idempotency(events, args.idempotency_key)
         if repeated:
             _print_json({"status": "idempotent", "event": repeated["id"], "task": args.task})
             return 0
-        if manifest.get("phase") != "execute" or not manifest.get("gates", {}).get("plan_approved"):
+        if record.get("phase") != "execute" or not record.get("gates", {}).get("plan_approved"):
             raise WorkflowError("task transition requires approved execute phase")
         current = next((task for task in tasks if task.get("id") == args.task), None)
         if current is None:
@@ -320,6 +415,7 @@ def command_task(args: argparse.Namespace) -> int:
         event_type = {"begin": "task.started", "pass": "task.passed", "fail": "task.failed", "block": "task.blocked"}[args.action]
         event = next_event(
             events,
+            args.work_item,
             event_type,
             task=args.task,
             refs=[args.evidence] if args.evidence else [],
@@ -330,9 +426,9 @@ def command_task(args: argparse.Namespace) -> int:
         updated_tasks = [updated_task if task.get("id") == args.task else task for task in tasks]
         all_done = all(task.get("status") in {"passed", "skipped"} for task in updated_tasks)
         if args.action == "begin":
-            manifest_values = {"state": "active", "active_task": args.task, "next_action": args.task}
+            record_values = {"state": "active", "active_task": args.task, "next_action": args.task}
         elif args.action == "pass" and all_done:
-            manifest_values = {
+            record_values = {
                 "phase": "review",
                 "state": "active",
                 "delivery": "implemented",
@@ -341,36 +437,53 @@ def command_task(args: argparse.Namespace) -> int:
             }
         elif args.action == "pass":
             pending = next((task["id"] for task in updated_tasks if task.get("status") == "pending"), None)
-            manifest_values = {"state": "active", "active_task": None, "next_action": pending}
+            record_values = {"state": "active", "active_task": None, "next_action": pending}
         else:
-            manifest_values = {"state": "blocked", "active_task": None, "next_action": args.task}
-        updated_manifest = {
-            **manifest,
-            **manifest_values,
+            record_values = {"state": "blocked", "active_task": None, "next_action": args.task}
+        updated_record = {
+            **record,
+            **record_values,
+            "tasks": updated_tasks,
             "last_event": event["id"],
             "updated_at": event["at"],
         }
         updated_events = [*events, event]
-        commit_files(args.root, _writes_for_item(args.root, item, updated_manifest, updated_tasks, updated_events))
+        commit_files(args.root, _writes_for_item(item, updated_record, updated_events))
     _print_json({"status": updated_task["status"], "task": args.task, "event": event["id"]})
     return 0
 
 
 def command_review(args: argparse.Namespace) -> int:
+    findings = args.findings_file.read_text(encoding="utf-8").strip() if args.findings_file else None
+    remediation_tasks: list[dict[str, Any]] = []
+    if args.remediation_tasks_file:
+        supplied_tasks = load_data(args.remediation_tasks_file)
+        if not isinstance(supplied_tasks, list) or not supplied_tasks or any(
+            not isinstance(task, dict) for task in supplied_tasks
+        ):
+            raise UsageError(
+                "review requires --remediation-tasks-file containing a non-empty task list"
+            )
+        remediation_tasks = supplied_tasks
+    if args.result == "needs_changes" and not remediation_tasks:
+        raise UsageError("needs_changes requires --remediation-tasks-file")
+    if args.result != "needs_changes" and remediation_tasks:
+        raise UsageError("--remediation-tasks-file is only valid for needs_changes")
+    if any(task.get("status") != "pending" for task in remediation_tasks):
+        raise UsageError("remediation tasks must start with pending status")
     with WriterLock(args.root):
         recover_transactions(args.root)
         _ensure_valid(args.root, args.work_item)
-        item, manifest, tasks, events = _item_data(args.root, args.work_item)
+        item, record, tasks, events = _item_data(args.root, args.work_item)
         repeated = event_by_idempotency(events, args.idempotency_key)
         if repeated:
             _print_json({"status": "idempotent", "event": repeated["id"], "work_item": args.work_item})
             return 0
-        if manifest.get("phase") != "review":
+        if record.get("phase") != "review":
             raise WorkflowError("review result requires review phase")
-        if args.result == "needs_changes" and not any(task.get("status") == "pending" for task in tasks):
-            raise WorkflowError("needs_changes requires a pending remediation task")
         event = next_event(
             events,
+            args.work_item,
             "review.completed",
             result=args.result,
             refs=[],
@@ -379,19 +492,28 @@ def command_review(args: argparse.Namespace) -> int:
         if args.result in {"passed", "passed_with_risks"}:
             values = {"phase": "done", "state": "completed", "next_action": None}
         elif args.result == "needs_changes":
-            next_task = next(task["id"] for task in tasks if task.get("status") == "pending")
+            next_task = remediation_tasks[0]["id"]
             values = {"phase": "execute", "state": "active", "next_action": next_task}
         else:
             values = {"state": "blocked", "next_action": "resolve_review_blocker"}
-        updated_manifest = {
-            **manifest,
+        updated_record = {
+            **record,
             **values,
-            "gates": {**manifest["gates"], "review_approved": args.result in {"passed", "passed_with_risks"}},
-            "review": {"result": args.result, "at": event["at"]},
+            "gates": {**record["gates"], "review_approved": args.result in {"passed", "passed_with_risks"}},
+            "review": {
+                "result": args.result,
+                "at": event["at"],
+                "findings": [findings] if findings else [],
+            },
+            "tasks": [*tasks, *remediation_tasks],
             "last_event": event["id"],
             "updated_at": event["at"],
         }
-        commit_files(args.root, _writes_for_item(args.root, item, updated_manifest, tasks, [*events, event]))
+        updated_events = [*events, event]
+        errors = validate_item_data(item, updated_record, updated_events)
+        if errors:
+            raise WorkflowError("review update validation failed:\n" + "\n".join(errors))
+        commit_files(args.root, _writes_for_item(item, updated_record, updated_events))
     _print_json({"status": args.result, "work_item": args.work_item})
     return 0
 
@@ -399,10 +521,7 @@ def command_review(args: argparse.Namespace) -> int:
 def command_refresh_index(args: argparse.Namespace) -> int:
     if not args.root.is_dir():
         raise WorkflowError(f"missing workflow directory: {args.root}")
-    with WriterLock(args.root):
-        recover_transactions(args.root)
-        commit_files(args.root, index_writes(args.root))
-    _print_json({"status": "refreshed", "records": len(index_records(args.root))})
+    _print_json({"status": "derived", "records": len(index_records(args.root))})
     return 0
 
 
@@ -442,6 +561,15 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--work-item")
     validate.set_defaults(handler=command_validate)
 
+    set_plan = subparsers.add_parser("set-plan")
+    set_plan.add_argument("--root", type=Path, default=Path(".ai-workflow"))
+    set_plan.add_argument("--work-item", required=True)
+    set_plan.add_argument("--input-file", type=Path)
+    set_plan.add_argument("--plan-file", type=Path, required=True)
+    set_plan.add_argument("--tasks-file", type=Path, required=True)
+    set_plan.add_argument("--idempotency-key")
+    set_plan.set_defaults(handler=command_set_plan)
+
     ready = subparsers.add_parser("plan-ready")
     ready.add_argument("--root", type=Path, default=Path(".ai-workflow"))
     ready.add_argument("--work-item", required=True)
@@ -468,6 +596,8 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--root", type=Path, default=Path(".ai-workflow"))
     review.add_argument("--work-item", required=True)
     review.add_argument("--result", choices=("passed", "passed_with_risks", "needs_changes", "blocked"), required=True)
+    review.add_argument("--findings-file", type=Path)
+    review.add_argument("--remediation-tasks-file", type=Path)
     review.add_argument("--idempotency-key")
     review.set_defaults(handler=command_review)
 

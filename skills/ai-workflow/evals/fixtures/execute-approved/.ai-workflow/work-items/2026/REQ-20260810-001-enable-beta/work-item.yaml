@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "id": "REQ-20260810-001-enable-beta",
+  "kind": "requirement",
+  "title": "Enable beta search by default",
+  "aliases": [],
+  "track": "light",
+  "phase": "execute",
+  "state": "active",
+  "delivery": "not_started",
+  "current_revision": "R001",
+  "revisions": [
+    {
+      "id": "R001",
+      "input": "Enable `beta_search` by default.",
+      "plan": "Change only the `beta_search` default and run the declared unittest command.",
+      "delta": null,
+      "status": "approved",
+      "approved_at": "2026-08-10T00:02:00+00:00"
+    }
+  ],
+  "base_commit": null,
+  "capabilities": ["feature-flags"],
+  "modules": ["src/feature_flags.py"],
+  "parent": null,
+  "supersedes": [],
+  "gates": {
+    "plan_approved": true,
+    "review_approved": false,
+    "release_approved": false
+  },
+  "active_task": null,
+  "next_action": "TASK-001",
+  "last_event": "EVT-000003",
+  "updated_at": "2026-08-10T00:02:00+00:00",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "revision": "R001",
+      "title": "Enable beta search default",
+      "status": "pending",
+      "depends_on": [],
+      "requirements": ["REQ-BETA-001"],
+      "acceptance": ["AC-001"],
+      "scope": ["src/feature_flags.py"],
+      "expected_behavior": "enabled('beta_search') returns true by default",
+      "validation": ["python3 -m unittest discover -s tests -v"],
+      "evidence": [],
+      "rollback": "Restore beta_search to false",
+      "done_condition": "The declared unittest passes",
+      "attempt": 0,
+      "failure": null,
+      "last_event": null
+    }
+  ],
+  "decisions": [],
+  "review": {
+    "result": null,
+    "at": null,
+    "findings": []
+  },
+  "summary": "Enable beta search by default",
+  "evidence": []
+}

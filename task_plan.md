@@ -6,7 +6,7 @@
 
 ## Current Phase
 
-Phase 12: `ai-workflow` P0 optimization
+Phase 14: `ai-workflow` two-file runtime storage implementation
 
 ## Phases
 
@@ -92,6 +92,23 @@ Phase 12: `ai-workflow` P0 optimization
 - [x] 将 Skill 收敛为薄路由器，按模式加载并缩窄隐式触发
 - [x] 增加 `light/standard/strict` 分级和真实 fixture eval
 - [x] 运行单元测试、静态检查、差异审查和 Skill 对照评测
+- **Status:** complete
+
+### Phase 13: `ai-workflow` 运行时存储最小化调研
+
+- [x] 盘点当前初始化及规划阶段生成的 canonical、derived 与 semantic 文件
+- [x] 核验 OpenAI Skill、SQLite、Git、JSON Lines、YAML 与事件存储的一手资料
+- [x] 比较单 YAML、单 JSONL、SQLite 和每工作项双文本文件方案
+- [x] 给出保留 Git 可审阅性的最小存储模型与迁移边界
+- **Status:** complete
+
+### Phase 14: `ai-workflow` 双文件运行时存储实施
+
+- [x] 冻结当前行为并增加双文件布局、迁移拒绝和状态一致性的失败测试
+- [x] 将每工作项 canonical storage 收敛为 `work-item.yaml + events.jsonl`
+- [x] 删除持久化派生视图和项目级占位文件，改为 CLI 按需计算
+- [x] 更新 Skill、存储协议、validator、fixtures 与 eval expectations
+- [x] 完成单元测试、静态检查、Skill 校验、差异审查和提交
 - **Status:** complete
 
 ## Key Questions

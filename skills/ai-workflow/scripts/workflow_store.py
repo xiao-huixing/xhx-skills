@@ -1,4 +1,4 @@
-"""ai-workflow 的文件存储、锁和派生视图工具。"""
+"""ai-workflow 的双文件存储、锁和事务工具。"""
 
 from __future__ import annotations
 
@@ -24,20 +24,11 @@ STATES = frozenset({"active", "waiting_input", "blocked", "paused", "completed",
 DELIVERIES = frozenset({"not_started", "implemented", "merged", "deployed", "verified"})
 TRACKS = frozenset({"light", "standard", "strict"})
 TASK_STATUSES = frozenset({"pending", "in_progress", "passed", "failed", "blocked", "skipped"})
-REQUIRED_ROOT_FILES = (
-    "project/overview.md",
-    "project/modules.yaml",
-    "capabilities/index.yaml",
-    "indexes/active.yaml",
-    "indexes/catalog.jsonl",
-)
-REQUIRED_WORK_ITEM_FILES = (
-    "manifest.yaml",
-    "context.md",
-    "tasks.yaml",
-    "execution/state.yaml",
-    "execution/events.ndjson",
-)
+WORK_ITEM_SCHEMA_VERSION = 2
+EVENT_SCHEMA_VERSION = 1
+WORK_ITEM_FILE = "work-item.yaml"
+EVENTS_FILE = "events.jsonl"
+REQUIRED_WORK_ITEM_FILES = (WORK_ITEM_FILE, EVENTS_FILE)
 
 
 class WorkflowError(RuntimeError):
@@ -119,10 +110,16 @@ def iter_work_items(root: Path) -> list[Path]:
     )
 
 
-def next_event(events: list[dict[str, Any]], event_type: str, **values: Any) -> dict[str, Any]:
+def next_event(
+    events: list[dict[str, Any]], work_item_id: str, event_type: str, **values: Any
+) -> dict[str, Any]:
     numbers = [int(str(event.get("id", "EVT-0")).removeprefix("EVT-")) for event in events]
+    sequence = max((int(event.get("sequence", 0)) for event in events), default=0) + 1
     event = {
+        "schema_version": EVENT_SCHEMA_VERSION,
         "id": f"EVT-{max(numbers, default=0) + 1:06d}",
+        "work_item_id": work_item_id,
+        "sequence": sequence,
         "at": now_iso(),
         "actor": values.pop("actor", "ai-workflow"),
         "type": event_type,
@@ -263,73 +260,28 @@ def commit_files(root: Path, writes: dict[Path, str]) -> None:
         pass
 
 
-def make_state(manifest: dict[str, Any], tasks: list[dict[str, Any]], events: list[dict[str, Any]]) -> dict[str, Any]:
-    passed_events = [event for event in events if event.get("type") == "task.passed"]
-    return {
-        "schema_version": 1,
-        "phase": manifest["phase"],
-        "state": manifest["state"],
-        "active_task": manifest.get("active_task"),
-        "last_success": passed_events[-1]["id"] if passed_events else None,
-        "blocked_by": [task["id"] for task in tasks if task.get("status") == "blocked"],
-        "next_action": manifest.get("next_action"),
-        "updated_at": manifest["updated_at"],
-    }
-
-
-def make_context(manifest: dict[str, Any], tasks: list[dict[str, Any]]) -> str:
-    completed = [task["id"] for task in tasks if task.get("status") == "passed"]
-    blocked = [task["id"] for task in tasks if task.get("status") == "blocked"]
-    return "\n".join(
-        (
-            "# Current Context",
-            "",
-            f"- Work item: {manifest['id']}",
-            f"- Current revision: {manifest['current_revision']}",
-            f"- Goal: {manifest['title']}",
-            f"- Track: {manifest['track']}",
-            f"- Phase/state/delivery: {manifest['phase']} / {manifest['state']} / {manifest['delivery']}",
-            f"- Completed: {', '.join(completed) if completed else 'none'}",
-            f"- In progress: {manifest.get('active_task') or 'none'}",
-            f"- Blocked: {', '.join(blocked) if blocked else 'none'}",
-            f"- Next action: {manifest.get('next_action') or 'none'}",
-            "",
-        )
-    )
-
-
 def index_records(root: Path, extra: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    manifests: list[tuple[dict[str, Any], Path]] = []
+    records: list[tuple[dict[str, Any], Path]] = []
     for item in iter_work_items(root):
-        path = item / "manifest.yaml"
+        path = item / WORK_ITEM_FILE
         if path.is_file():
-            manifest = load_data(path)
-            if isinstance(manifest, dict):
-                manifests.append((manifest, item))
+            record = load_data(path)
+            if isinstance(record, dict):
+                records.append((record, item))
     if extra:
-        manifests = [pair for pair in manifests if pair[0].get("id") != extra.get("id")]
-        manifests.append((extra, work_item_path(root, extra["id"])))
+        records = [pair for pair in records if pair[0].get("id") != extra.get("id")]
+        records.append((extra, work_item_path(root, extra["id"])))
     return [
         {
-            "id": manifest.get("id"),
-            "title": manifest.get("title"),
-            "track": manifest.get("track"),
-            "phase": manifest.get("phase"),
-            "state": manifest.get("state"),
-            "delivery": manifest.get("delivery"),
-            "aliases": manifest.get("aliases", []),
-            "updated_at": manifest.get("updated_at"),
+            "id": record.get("id"),
+            "title": record.get("title"),
+            "track": record.get("track"),
+            "phase": record.get("phase"),
+            "state": record.get("state"),
+            "delivery": record.get("delivery"),
+            "aliases": record.get("aliases", []),
+            "updated_at": record.get("updated_at"),
             "path": str(path.relative_to(root)),
         }
-        for manifest, path in sorted(manifests, key=lambda pair: str(pair[0].get("id", "")))
+        for record, path in sorted(records, key=lambda pair: str(pair[0].get("id", "")))
     ]
-
-
-def index_writes(root: Path, extra: dict[str, Any] | None = None) -> dict[Path, str]:
-    records = index_records(root, extra)
-    active = [record for record in records if record.get("state") not in {"completed", "cancelled"}]
-    catalog = "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
-    return {
-        root / "indexes/active.yaml": dump_data(active),
-        root / "indexes/catalog.jsonl": catalog,
-    }

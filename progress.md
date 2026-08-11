@@ -123,3 +123,47 @@
   - 建立 3 个真实 fixture，完成旧版/current 对照执行、独立 grader、盲比较和 post-hoc 分析；current graded expectations 为 14/14，baseline 为 6/14，盲比较 3/3 由 current 胜出。
   - 单次 timing 显示 status 108s→42s、execute 249s→213s；strict plan 首轮 365s→489s，去除占位文件回读、空 history 和冗余 validate 后第二轮降至 432s，仍是后续优化目标。
   - 最终验证：21 项 unittest 全通过；Ruff、py_compile、Skill quick validation、fixture workflow validation、JSON 解析、secret pattern scan、行尾空白检查和 `git diff --check` 均通过。
+
+### Phase 13: `ai-workflow` 运行时存储最小化调研
+
+- **Status:** complete
+- **Started:** 2026-08-11 09:37 CST
+- Actions taken:
+  - 按系统时间核验资料时点，读取本地 AI 工程知识库的检索协议与相关 Harness 页面。
+  - 盘点当前 storage protocol、初始化写入和派生视图刷新逻辑，确认初始化固定产生 12 个路径，规划阶段通常达到 13 个。
+  - 查阅 OpenAI Skill、SQLite、Git、JSON Lines、YAML、POSIX 与 Microsoft Event Sourcing 一手资料。
+  - 比较单 YAML、单 JSONL、SQLite 和每工作项双文本文件方案，明确 Git 协作、并发、查询、审计与 crash recovery 取舍。
+  - 输出 `docs/research/ai-workflow-minimal-storage-research.md`，推荐将 Git canonical runtime 收敛为每工作项两个文本文件，并将所有派生视图改为按需生成。
+- Files created/modified:
+  - `docs/research/ai-workflow-minimal-storage-research.md`（创建）
+  - `task_plan.md`（更新）
+  - `findings.md`（更新）
+  - `progress.md`（更新）
+
+### Phase 14: `ai-workflow` 双文件运行时存储实施
+
+- **Status:** complete
+- **Started:** 2026-08-11 10:29 CST
+- Actions taken:
+  - 用户确认先按调研建议优化，不引入 SQLite canonical store。
+  - 读取 `skill-creator`、`implement`、`Verification Loop` 和 `planning-with-files` 规范，恢复现有工作区状态。
+  - 将实施范围收敛为每需求 `work-item.yaml + events.jsonl`、派生视图按需计算及相关测试/文档更新。
+  - 运行现有 21 项测试建立基线，全部通过。
+  - 先将测试改为双文件布局、schema version 2、event sequence、`set-plan` 和 exact-file contract；预期红灯结果为 22 项中 8 通过、14 失败，失败均对应尚未实现的新契约。
+  - 实现 schema version 2，将 revisions、tasks、decisions、review、summary 与 evidence refs 内联进 `work-item.yaml`，并为 `events.jsonl` 增加 work-item identity 与连续 sequence。
+  - 新增 `set-plan`，规划输入、计划和任务通过 CLI 一次导入；所有 mutation 保持 writer lock、幂等事件、候选状态校验和可恢复双文件 transaction。
+  - 删除 root indexes、project/capability placeholders、context、state 和 revision Markdown 的持久化生成；查询与 `refresh-index` 改为只读派生。
+  - 更新 Skill 薄路由、五份模式/协议文档、execute fixture 与 eval expectations；每需求 exact-file contract 固定为两个文件。
+  - 增加旧布局拒绝、`init` 不混写旧 schema、event sequence 和只读 `refresh-index` 回归测试；旧数据不会自动删除或重写。
+  - 为 `review needs_changes` 增加原子 remediation task 导入，保证 CLI-only writer 下的审核返工路径仍可执行。
+  - 最终验证：26 项 unittest 全通过；Ruff、py_compile、Skill quick validation、fixture workflow validation、eval JSON 解析、secret pattern scan 和 `git diff --check` 均通过。
+- Files created/modified:
+  - `skills/ai-workflow/SKILL.md`
+  - `skills/ai-workflow/references/`
+  - `skills/ai-workflow/scripts/`
+  - `skills/ai-workflow/tests/`
+  - `skills/ai-workflow/evals/`
+  - `docs/research/ai-workflow-minimal-storage-research.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
