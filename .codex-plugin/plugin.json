@@ -1,6 +1,6 @@
 {
   "name": "xhx-skills",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Reusable skills for PRD-driven software delivery, evidence-driven bug fixing, and backend code-flow analysis.",
   "author": {
     "name": "xiao-huixing"

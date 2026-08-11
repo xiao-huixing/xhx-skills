@@ -1,54 +1,64 @@
 ---
 name: bug-fix
 description: >-
-  Run an evidence-driven, stack-agnostic bug triage and repair workflow. Use
-  whenever a user reports, investigates, reproduces, fixes, verifies, or
-  regresses a software defect. The skill records evidence and progress in the
-  project's .ai-workflow directory and distinguishes defects from requirement
-  changes.
-user-invocable: true
+  Diagnose and repair non-trivial software defects with evidence-driven gates.
+  Use for intermittent or unreproduced failures, production-impacting bugs,
+  cross-component defects, existing BUG IDs or external issue histories, and
+  requests for formal triage, tracking, or verification. If explicitly invoked
+  for a clear low-risk same-session fix, use the non-persistent fast lane.
+  Do not use automatically for obvious typos, small local behavior fixes with
+  a clear expected result, routine dependency bumps, or product requirement changes.
 ---
 
 # Bug Fix
 
-This is the single generic bug workflow. It uses the same file-backed history
-as `ai-workflow`, but creates a `BUG-*` work item and applies bug-specific
-evidence gates.
+Route before reading references or creating files. The purpose of durable
+tracking is recovery and auditability; it should not make a quick fix slower
+than the fix itself.
 
-```text
-bug-fix <issue, description, link, or BUG-ID>
-bug-fix status <BUG-ID>
-bug-fix resume <BUG-ID>
-```
+## Fast lane
 
-Read [bug-protocol.md](references/bug-protocol.md) before creating or updating
-an item. Read the project workflow instructions and the relevant
-`ai-workflow` storage protocol first when `.ai-workflow/` already exists.
+Use this default when the expected behavior is clear, the change is local and
+reversible, targeted verification fits in the current session, and there is no
+production, security, auth, money, destructive-data, or cross-team risk.
 
-## Non-negotiable gates
+1. Read the relevant code, report, and test only.
+2. Confirm the cause at the smallest useful boundary.
+3. Apply the requested fix and run the narrowest meaningful check.
+4. Report cause, changed files, and validation.
 
-1. Read all available issue information: original description, attachments,
-   related items, change history, and later comments.
-2. Establish the environment and a reproducible baseline before claiming a
-   root cause. A first failed reproduction is not closure; re-check the
-   problem definition, conditions, and verification path.
-3. Separate facts, observations, hypotheses, and assumptions. Record evidence
-   with timestamps and commands or links.
-4. Fix the smallest root-cause boundary. If the behavior is actually a new or
-   changed product requirement, create or link a `REQ-*` revision and stop the
-   bug path without forcing a code patch.
-5. Verify the fix with the narrowest automated test, relevant regression tests,
-   and an end-to-end check when the defect crosses a user-visible boundary.
+Do not create `.ai-workflow`, a BUG ID, planning artifacts, or event records.
+Do not read [bug-protocol.md](references/bug-protocol.md) in this lane.
 
-## Safety
+## Tracked lane
 
-The default is read-only triage plus local changes requested by the user. Do
-not alter external issue state, merge, deploy, or change production data unless
-the user explicitly authorizes that side effect. Do not expose secrets in
-evidence or logs.
+Use durable tracking when any condition applies:
 
-## Completion response
+- the user asks to record, track, resume, audit, or create a BUG item;
+- an existing BUG ID, external issue, attachments, comments, or history matters;
+- the failure is intermittent, unreproduced, recurring, production-impacting,
+  cross-component, or likely to span sessions or owners;
+- security, privacy, auth, money, migration, destructive data, release, or
+  rollback evidence is required.
 
-Report the `BUG-*` ID, current state, reproduction result, root cause, files
-changed, tests and evidence, unresolved risks, and the next command. A bug is
-not closed when it was merely not reproduced or when a test was skipped.
+Read [bug-protocol.md](references/bug-protocol.md) only for this lane. Use the
+`ai-workflow` CLI as the sole writer and create a `BUG-*` item with
+`--kind bugfix`.
+
+## Evidence gates
+
+For both lanes, read all issue material that is actually in scope. Establish a
+reproducible baseline before claiming a root cause; a first failed reproduction
+is not closure. Separate observations from hypotheses, fix the smallest root
+cause, and run targeted plus relevant regression checks.
+
+If behavior is a new product requirement, stop expanding the patch and route it
+to requirement planning. Do not alter external issue state, commit, push, merge,
+deploy, restart services, or change production data without authorization.
+
+## Response
+
+For the fast lane, report cause, files, checks, and remaining risk without a
+workflow ID. For the tracked lane, also report the BUG ID, phase/state, evidence,
+blockers, and exact next CLI command. Never claim release or production
+verification without direct evidence.

@@ -1,12 +1,13 @@
 ---
 name: ai-workflow
 description: >-
-  Run a durable project-backed plan-execute-review workflow when the user
+  Run a durable project-backed plan-execute-review workflow only when the user
   explicitly names ai-workflow, supplies a PRD and asks for a tracked delivery
   lifecycle, references an existing REQ/BUG work item, or asks to resume,
   revise, audit, or inspect recorded workflow state. Do not use for ad-hoc code
-  edits, ordinary code review, one-off planning, unrelated status questions, or
-  defect diagnosis already handled by a dedicated bug-fix workflow.
+  edits, simple same-session fixes, ordinary code review, one-off planning,
+  unrelated status questions, or defect diagnosis already handled by a
+  dedicated bug-fix workflow.
 ---
 
 # AI Workflow
@@ -14,6 +15,18 @@ description: >-
 Use `scripts/workflow.py` as the only writer of workflow state. Run it from this
 Skill directory with `python3`; pass the target repository's `.ai-workflow`
 path through `--root`.
+
+## Admission gate
+
+Durable tracking is opt-in. Initialize storage only when the user explicitly
+selects `ai-workflow` or asks for tracked PRD delivery, or when continuing an
+existing REQ/BUG item. If a request is a clear, local, reversible change that
+can be completed and verified in the current session, exit this Skill and
+handle it normally. Do not initialize `.ai-workflow` merely because an edit has
+multiple steps or needs tests.
+
+The `light` track is the smallest tracked workflow after admission; it is not a
+reason to record ordinary quick fixes.
 
 ## Route first
 

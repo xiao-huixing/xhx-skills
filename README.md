@@ -9,7 +9,7 @@ A collection of agent skills. Each skill lives in its own folder under `skills/`
 | [final-response](skills/final-response) | Completion check before an agent sends its final answer — appends a short note on what changed, the path taken, and why. |
 | [explain-code-flow](skills/explain-code-flow) | Reads backend code and explains end-to-end business flows, all interfaces, and each interface's execution process without detailed code. |
 | [ai-workflow](skills/ai-workflow) | Three-step, file-backed workflow for planning from a PRD, executing approved tasks, reviewing results, resuming work, and recording revisions. |
-| [bug-fix](skills/bug-fix) | Generic evidence-driven bug triage, root-cause repair, regression verification, and handoff workflow. |
+| [bug-fix](skills/bug-fix) | Evidence-driven bug fixing with a no-record fast lane for simple fixes and durable tracking for complex defects. |
 
 ## Install
 
@@ -28,7 +28,9 @@ npx skills add xiao-huixing/xhx-skills@ai-workflow
 npx skills add xiao-huixing/xhx-skills@bug-fix
 ```
 
-The two skills share a `.ai-workflow/` directory in the target project.
+Tracked work from the two skills shares a `.ai-workflow/` directory in the
+target project. Simple `bug-fix` work uses the fast lane and creates no workflow
+files.
 `ai-workflow` uses a deterministic Python CLI for initialization, validation,
 serialized recoverable transitions, status, history, and indexes. Read-only
 queries take a fast path without repository scans or storage initialization;

@@ -23,6 +23,12 @@ class SkillContractTest(unittest.TestCase):
         body = description.group("body")
         self.assertIn("Do not use", body)
         self.assertNotIn("Use whenever", body)
+        self.assertIn("durable", body.casefold())
+
+    def test_simple_work_does_not_initialize_tracking(self):
+        content = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("## Admission gate", content)
+        self.assertIn("Do not initialize `.ai-workflow`", content)
 
     def test_protocol_uses_canonical_waiting_state(self):
         paths = [SKILL / "SKILL.md", *(SKILL / "references").glob("*.md")]

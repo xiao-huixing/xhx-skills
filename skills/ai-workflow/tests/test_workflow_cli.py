@@ -147,6 +147,30 @@ class WorkflowCliTest(unittest.TestCase):
                 json.loads(result.stdout)["work_item"],
             )
 
+    def test_init_bugfix_uses_two_file_layout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / ".ai-workflow"
+            result = self.run_cli(
+                "init",
+                "--root",
+                str(root),
+                "--title",
+                "Intermittent save failure",
+                "--date",
+                "20260810",
+                "--kind",
+                "bugfix",
+            )
+            work_item = json.loads(result.stdout)["work_item"]
+            self.assertEqual("BUG-20260810-001-intermittent-save-failure", work_item)
+            item = root / "work-items/2026" / work_item
+            self.assertEqual(
+                ["events.jsonl", "work-item.yaml"],
+                sorted(path.name for path in item.iterdir() if path.is_file()),
+            )
+            record = json.loads((item / "work-item.yaml").read_text(encoding="utf-8"))
+            self.assertEqual("bugfix", record["kind"])
+
     def test_invalid_init_slug_does_not_create_workflow_root(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / ".ai-workflow"
