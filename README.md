@@ -6,6 +6,7 @@ A collection of agent skills. Each skill lives in its own folder under `skills/`
 
 | Skill | What it does |
 | --- | --- |
+| [java-code-standards](skills/java-code-standards) | Java architecture and coding rules, reusable Query/VO models, extraction boundaries, and mandatory functional comments on types, methods, and every complex-flow step. |
 | [final-response](skills/final-response) | Completion check before an agent sends its final answer — appends a short note on what changed, the path taken, and why. |
 | [explain-code-flow](skills/explain-code-flow) | Reads backend code and explains end-to-end business flows, all interfaces, and each interface's execution process without detailed code. |
 | [ai-workflow](skills/ai-workflow) | Three-step, file-backed workflow for planning from a PRD, executing approved tasks, reviewing results, resuming work, and recording revisions. |

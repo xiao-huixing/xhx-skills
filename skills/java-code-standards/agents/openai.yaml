@@ -1,0 +1,4 @@
+interface:
+  display_name: "Java 代码规范"
+  short_description: "规范 Java 分层、模型复用与复杂逻辑，强制类、方法及流程每步的功能注释"
+  default_prompt: "Use $java-code-standards to write or review this Java code with clear responsibilities, reusable models, and functional comments on every type, method, and complex-flow step."

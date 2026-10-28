@@ -1,7 +1,7 @@
 {
   "name": "xhx-skills",
   "version": "0.3.1",
-  "description": "Reusable skills for PRD-driven software delivery, evidence-driven bug fixing, and backend code-flow analysis.",
+  "description": "Reusable skills for Java coding standards, PRD-driven software delivery, evidence-driven bug fixing, and backend code-flow analysis.",
   "author": {
     "name": "xiao-huixing"
   },
@@ -11,20 +11,22 @@
     "codex",
     "agent-skills",
     "backend",
-    "code-analysis"
+    "code-analysis",
+    "java"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "XHX Skills",
-    "shortDescription": "PRD-driven software delivery, bug fixing, and backend analysis skills.",
-    "longDescription": "Adds a file-backed plan-execute-review workflow, evidence-driven bug fixing, completion checks, and code-grounded backend business-flow analysis.",
+    "shortDescription": "Java coding standards, software delivery, bug fixing, and backend analysis.",
+    "longDescription": "Adds Java coding standards with functional comments, a file-backed plan-execute-review workflow, evidence-driven bug fixing, completion checks, and backend business-flow analysis.",
     "developerName": "xiao-huixing",
     "category": "Developer Tools",
     "capabilities": [
       "Code analysis",
       "Workflow documentation",
       "PRD-driven development",
-      "Evidence-driven bug fixing"
+      "Evidence-driven bug fixing",
+      "Java coding standards"
     ],
     "defaultPrompt": "Use installed XHX skills only when explicitly selected or when a skill's narrow description matches the task."
   }
