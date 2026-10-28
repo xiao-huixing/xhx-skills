@@ -2,7 +2,7 @@
 
 ## 定位与适用范围
 
-本目录约束 Java / Spring 代码的编写、分析、修改和代码审查，涵盖架构、分层、模型、业务流程、数据访问、异常日志和安全编码。
+本目录约束 Java / Spring 代码的编写、分析、修改和代码审查，涵盖基础语言写法、架构、分层、模型、业务流程、数据访问、异常日志和安全编码。
 
 规范正文既用于本机全局约束，也随 `java-code-standards` 技能打包发布；同一版本的正文保持一致。使用时选择当前环境中的一个规范入口，避免叠加重复规则。
 
@@ -25,7 +25,7 @@
 
 | 代码涉及内容 | 专题 |
 |---|---|
-| 类、方法、注释、对象、命名 | [01-core.md](01-core.md) |
+| 命名、泛型、对象、Optional / Stream、格式、功能注释 | [01-core.md](01-core.md) |
 | 架构、分层、复杂逻辑、拆方法或拆类 | [02-layering-and-methods.md](02-layering-and-methods.md) |
 | Controller、Query、VO、Result、CRUD、校验、分页 | [03-web-api.md](03-web-api.md) |
 | 异常、错误码、用户提示、日志、审计 | [04-exception-and-logging.md](04-exception-and-logging.md) |

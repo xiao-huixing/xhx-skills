@@ -1,6 +1,6 @@
 ---
 name: java-code-standards
-description: Apply Java and Spring coding standards when writing, modifying, analyzing, or reviewing Java code. Covers architecture, Controller/Service/DAO responsibilities, reusable Query/VO models, complexity and extraction boundaries, and mandatory functional comments on every explicitly declared type, method, and complex-flow step.
+description: Apply Java and Spring coding standards when writing, modifying, analyzing, or reviewing Java code. Covers type safety, Optional/Stream usage, architecture, Controller/Service/DAO responsibilities, reusable Query/VO models, complexity and extraction boundaries, and mandatory functional comments on every explicitly declared type, method, and complex-flow step.
 ---
 
 # Java 代码规范
@@ -8,7 +8,7 @@ description: Apply Java and Spring coding standards when writing, modifying, ana
 ## 使用方式
 
 1. 读取目标项目的 AGENTS.md / CLAUDE.md 及适用的项目代码规则。
-2. 完整读取 [规范索引](references/index.md) 和 [核心编码与功能注释](references/01-core.md)。
+2. 完整读取 [规范索引](references/index.md) 和 [核心编码、基础写法与功能注释](references/01-core.md)。
 3. 按下表读取当前代码涉及的专题，再进行分析或修改；已读取且未变化的内容不重复加载。
 4. 以用户当前要求、项目具体约定、通用规则的顺序处理差异，复用现有组件，只处理本次授权范围。
 
