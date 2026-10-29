@@ -9,9 +9,11 @@
 ## 优先级与强制级别
 
 1. 用户当前明确要求。
-2. 适用于目标代码的项目规范与既有公开契约。
+2. 适用于目标代码的项目个性化约定与既有公开契约。
 3. 本目录通用 Java 代码规范。
 4. 示例性、历史性 Pattern。
+
+项目个性化约定与全局规范冲突时，以项目约定为准；全局规范补充项目未约定的部分。项目要求已经明确且适用于当前代码时，直接按该要求执行。
 
 - `MUST` / “必须”“禁止”“不得”：代码约束。
 - `SHOULD` / “默认”“优先”：通常采用，存在明确项目原因时可选择其他实现。
@@ -25,12 +27,12 @@
 
 | 代码涉及内容 | 专题 |
 |---|---|
-| 命名、泛型、对象、Optional / Stream、格式、功能注释 | [01-core.md](01-core.md) |
-| 架构、分层、复杂逻辑、拆方法或拆类 | [02-layering-and-methods.md](02-layering-and-methods.md) |
+| 类型、Optional / Stream、集合、数值与时间、资源、配置、注释 | [01-core.md](01-core.md) |
+| 架构、分层、复杂逻辑、拆分与 Spring 代理 | [02-layering-and-methods.md](02-layering-and-methods.md) |
 | Controller、Query、VO、Result、CRUD、校验、分页 | [03-web-api.md](03-web-api.md) |
 | 异常、错误码、用户提示、日志、审计 | [04-exception-and-logging.md](04-exception-and-logging.md) |
 | DAO、Mapper、SQL、数据一致性、事务 | [05-database-and-transaction.md](05-database-and-transaction.md) |
-| 外部调用、幂等、消息、缓存、并发 | [06-integration-and-concurrency.md](06-integration-and-concurrency.md) |
+| 外部调用、幂等、消息、缓存、上下文、中断与并发 | [06-integration-and-concurrency.md](06-integration-and-concurrency.md) |
 | 身份、权限、不可信输入、文件、敏感数据 | [07-security.md](07-security.md) |
 | 用户请求核对代码是否符合规范 | [09-review-checklist.md](09-review-checklist.md) |
 
